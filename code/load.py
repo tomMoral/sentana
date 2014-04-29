@@ -5,6 +5,8 @@ from Tree import Tree
 
 DATASET = '../data'
 if __name__ == '__main__':
+
+    print 'Load Trees...'
     with open(path.join(DATASET, 'STree.txt')) as f:
         trees = []
         for line in f.readlines():
@@ -12,8 +14,9 @@ if __name__ == '__main__':
             tree = np.array(tree).astype(int)
             trees.append(tree)
 
+    print 'Load Sentences...'
     with open(path.join(DATASET, 'datasetSentences.txt')) as f:
-        sent1 = f.readline()
+        f.readline()
         sentences = []
         lexicon = set()
         for line in f.readlines():
@@ -22,9 +25,26 @@ if __name__ == '__main__':
             sentences.append(sent)
             lexicon = lexicon.union(sent)
 
+    print 'Load Index...'
+    with open(path.join(DATASET, 'dictionary.txt')) as f:
+        index = {}
+        lexicon = set()
+        for line in f.readlines():
+            phrase = line.split('|')
+            index[int(phrase[1])] = phrase[0]
+
+    print 'Load Labels...'
+    with open(path.join(DATASET, 'sentiment_labels.txt')) as f:
+        f.readline()
+        labels = {}
+        for line in f.readlines():
+            id_p, y = line.split('|')
+            labels[index[int(id_p)]] = float(y)
+
+    print 'Build Trees...'
     X_trees = []
     for s, t in zip(sentences, trees):
-        X_trees.append(Tree(s, t))
+        X_trees.append(Tree(s, t, labels))
 
     vocab = {}
     for i, w in enumerate(lexicon):

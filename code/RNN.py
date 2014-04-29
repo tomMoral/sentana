@@ -31,9 +31,9 @@ class RNN(object):
             self.vocab[w] = i
 
         self.f = lambda X: np.tanh(X.T.dot(self.V).dot(X) + self.W.dot(X))
-        self.grad = lambda x: x
+        self.grad = lambda f: 1-f**2
 
-        self.y = lambda x: max(np.exp(x) / np.exp(x).sum())
+        self.y = lambda x: np.exp(x) / sum(np.exp(x))
 
     def compute(self, X_tree):
         for n in X_tree.leaf:

@@ -6,7 +6,7 @@ r = 0.0001
 
 class Tree(object):
     """docstring for Tree"""
-    def __init__(self, sentence, structure):
+    def __init__(self, sentence, structure, label=None):
         self.sentence = sentence
         self.structure = structure
 
@@ -21,6 +21,7 @@ class Tree(object):
         for i, w in enumerate(sentence):
             node = self.nodes[i]
             node.word = w
+            node.order = i
             self.leaf.append(node)
 
         parc = {}
@@ -30,4 +31,24 @@ class Tree(object):
             l = parc.get(p-1, [])
             l.append(i)
             parc[p-1] = l
-        self.parcours = parc.items()[:-1]
+        parc.pop(-1)
+        self.parcours = parc.items()
+        self.parcours.sort()
+
+        if label is not None:
+            for n in self.leaf:
+                n.y = label[n.word]
+
+            for p, [a, b] in self.parcours:
+                aT = self.nodes[a]
+                bT = self.nodes[b]
+                pT = self.nodes[p]
+                if aT.order < bT.order:
+                    pT.word = ' '.join([aT.word, bT.word])
+                else:
+                    pT.word = ' '.join([bT.word, aT.word])
+                try:
+                    pT.y = label[pT.word]
+                except KeyError:
+                    print 'error'
+                pT.order = aT.order
