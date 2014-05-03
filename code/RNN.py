@@ -1,5 +1,5 @@
+# -*- coding: utf8 -*-
 import numpy as np
-
 
 class RNN(object):
     """Class to use Recursive Neural Network on Tree
@@ -12,7 +12,7 @@ class RNN(object):
     -------
 
     """
-    def __init__(self, dim, vocab, r=5):
+    def __init__(self, vocab,dim=30,r=5):
         self.dim = dim
 
         #Initiate V, the tensor operator
@@ -22,7 +22,7 @@ class RNN(object):
         self.W = 1e-5*np.ones((dim, 2*dim))
 
         #Initiate Ws, the linear operator
-        self.Ws = 1e-5*np.ones((5, 2*dim))
+        self.Ws = 1e-5*np.ones((5, dim))
         
         #Regularisation
         self.reg=0.1
@@ -54,14 +54,14 @@ class RNN(object):
         errorVal=0.0
         for n in X_tree.leaf:
             n.X = self.L[self.vocab[n.word]] # Met a jour le mot avec le Lexicon courant
-            n.label=self.y(n.X) # Mise a jour du label predit
+            n.ypred=self.y(n.X) # Mise a jour du label predit
             errorVal+=-np.sum(n.y*np.log(n.ypred))
 
         for p, [a, b] in X_tree.parcours:
             aT = X_tree.nodes[a] #
             bT = X_tree.nodes[b] # Recupere pour chaque triplet parent,enfant1/2 les noeuds
             pT = X_tree.nodes[p]
-            X = np.append(aT.X, bT.X).reshape((-1, 1))
+            X = np.append(aT.X, bT.X)
             pT.X = self.f(X) # Misea jour du decripteur du parent
             pT.ypred=self.y(pT.X) # Mise a jour du label predit
             errorVal+=-np.sum(pT.y*np.log(pT.ypred))
@@ -90,7 +90,7 @@ class RNN(object):
             aT = X_tree.nodes[a] #
             bT = X_tree.nodes[b] # Recupere pour chaque triplet parent,enfant1/2 les noeuds
             pT = X_tree.nodes[p]
-            X = np.append(aT.X, bT.X).reshape((-1, 1))
+            X = np.append(aT.X, bT.X)
             ddown=(self.W.T.dot(pT.d)+pT.d.dot(self.V.dot(X)))*self.grad(X)
             #Propagation des erreurs vers le bas
             if aT.order<bT.order: #Si aT est le noeud de gauche

@@ -1,3 +1,4 @@
+# -*- coding: utf8 -*-
 import numpy as np
 
 class Node(object):
@@ -5,7 +6,10 @@ class Node(object):
     def __init__(self, word=None, label=None):
         super(Node, self).__init__() #??
         self.y = label
-        self.ypred= np.ones(label.shape)/len(label)
+        if label!=None:
+            self.ypred= np.ones(len(label))/len(label)
+        else:
+            self.ypred=None
         self.X = None
         self.word = word
         self.parent = None
