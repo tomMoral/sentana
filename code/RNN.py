@@ -44,7 +44,7 @@ class RNN(object):
         '''
         errorVal=0.0
         for X_tree in val_set:
-            errorVal+=self.backward_pass(X_tree)
+            errorVal+=self.forward_pass(X_tree)
         return errorVal/len(val_set)
         
     def forward_pass(self, X_tree):
