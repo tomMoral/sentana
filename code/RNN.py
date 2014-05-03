@@ -1,5 +1,6 @@
 # -*- coding: utf8 -*-
 import numpy as np
+from multiprocessing import Pool
 
 class RNN(object):
     """Class to use Recursive Neural Network on Tree
@@ -111,7 +112,7 @@ class RNN(object):
             
         return dWs,dV,dW,dL
 
-    def train(self,X_trees,learning_rate=1.0,mini_batch_size=25,warm_start=True,r=5,max_iter=1000,val_set=[],stop_threshold=10**(-10)):
+    def train(self,X_trees,learning_rate=1.0,mini_batch_size=25,warm_start=True,r=5,max_iter=1000,val_set=[],stop_threshold=10**(-10),n_check=10):
         '''
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
         '''
@@ -126,12 +127,16 @@ class RNN(object):
             #Initiate L, the Lexicon representation
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
     
+        #Liste pour erreurs
+        errMB=[]
+        errVal=[]
         #Condition d'arret
         n_iter=1
         eps=1.0
         if val_set!=[]:
             prevError=self.error(val_set)
             iniError=prevError
+            errVal.append(prevError)
 
         #Gradients pour AdaGrad
         eta=learning_rate
@@ -178,18 +183,21 @@ class RNN(object):
             self.L-=eta*dLCurrent/np.sqrt(dLHist)
             
             #Maj de la condition d'arret
-            if val_set!=[]:
+            if val_set!=[] and (n_iter%n_check)==0:
                 currentError=self.error(val_set)
                 eps=np.abs(currentError-prevError)
                 prevError=currentError
-                print('Error on validation set at iter {0} : {1}\n'.format(n_iter,currentError))
+                errVal.append(currentError)
+                errMB.append(currentMbe)
+                print('Error on validation set at iter {0} : {1}'.format(n_iter,currentError))
+                print('Error on mini batch at iter {0} : {1}'.format(n_iter,currentMbe))
             else:
-                print('Error on mini batch at iter {0} : {1}\n'.format(n_iter,currentMbe))
+                print('Error on mini batch at iter {0} : {1}'.format(n_iter,currentMbe))
+                errMB.append(currentMbe)
             
             #Maj iter
             n_iter+=1
         
         if val_set!=[]:
             print('Error on training set before and after training : {0}/{1}\n'.format(iniError,currentError))
-                        
-                
+        return errMB,errVal
