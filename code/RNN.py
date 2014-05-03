@@ -62,7 +62,10 @@ class RNN(object):
             aT = X_tree.nodes[a] #
             bT = X_tree.nodes[b] # Recupere pour chaque triplet parent,enfant1/2 les noeuds
             pT = X_tree.nodes[p]
-            X = np.append(aT.X, bT.X)
+            if aT.order<bT.order:
+                X = np.append(aT.X, bT.X)
+            else:
+                X = np.append(bT.X, aT.X)
             pT.X = self.f(X) # Misea jour du decripteur du parent
             pT.ypred=self.y(pT.X) # Mise a jour du label predit
             errorVal+=-np.sum(pT.y*np.log(pT.ypred))
@@ -91,13 +94,15 @@ class RNN(object):
             aT = X_tree.nodes[a] #
             bT = X_tree.nodes[b] # Recupere pour chaque triplet parent,enfant1/2 les noeuds
             pT = X_tree.nodes[p]
-            X = np.append(aT.X, bT.X)
-            ddown=(self.W.T.dot(pT.d)+pT.d.dot(self.V.dot(X)))*self.grad(X)
             #Propagation des erreurs vers le bas
             if aT.order<bT.order: #Si aT est le noeud de gauche
+                X = np.append(aT.X, bT.X)
+                ddown=(self.W.T.dot(pT.d)+pT.d.dot(self.V.dot(X)))*self.grad(X)
                 aT.d+=ddown[:self.dim]
                 bT.d+=ddown[self.dim:]
             else: #aT est a droite
+                X = np.append(bT.X, aT.X)
+                ddown=(self.W.T.dot(pT.d)+pT.d.dot(self.V.dot(X)))*self.grad(X)            
                 aT.d+=ddown[self.dim:]
                 bT.d+=ddown[:self.dim]
             #Contribution aux gradients
