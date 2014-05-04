@@ -1,26 +1,27 @@
 # -*- coding: utf8 -*-
 from Node import Node
 import numpy as np
+
 #Define class parameter
 r = 0.0001
 
 
 class Tree(object):
     """docstring for Tree"""
-    def getSoftLabel(self,l):
-        label=np.zeros(5)
-        if l<=0.2:
-            label[0]=1
-        elif 0.2<l<=0.4:
-            label[1]=1
-        elif 0.4<l<=0.6:
-            label[2]=1
-        elif 0.6<l<=0.8:
-            label[3]=1
+    def getSoftLabel(self, l):
+        label = np.zeros(5)
+        if l <= 0.2:
+            label[0] = 1
+        elif 0.2 < l <= 0.4:
+            label[1] = 1
+        elif 0.4 < l <= 0.6:
+            label[2] = 1
+        elif 0.6 < l <= 0.8:
+            label[3] = 1
         else:
-            label[4]=1
+            label[4] = 1
         return label
-        
+
     def __init__(self, sentence, structure, label=None):
         self.sentence = sentence
         self.structure = structure

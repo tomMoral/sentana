@@ -14,7 +14,7 @@ class RNN(object):
     -------
 
     """
-    def __init__(self, vocab={}, dim=30, r=5):
+    def __init__(self, vocab={}, dim=30, r=0.0001):
         self.dim = dim
 
         #Initiate V, the tensor operator
@@ -228,22 +228,22 @@ class RNN(object):
                 currentError = self.error(val_set)
                 errVal.append(currentError)
                 errMB.append(currentMbe)
-                print('Error on validation set at iter {0} : {1} \
-                       (previous : {2})'.format(n_iter, currentError, prevError))
-                print('Error on mini batch at iter {0} : {1} \
-                       (Gradient norm : {2})'.format(n_iter, currentMbe, gradNorm))
+                print('Error on validation set at iter {0} : {1} '
+                      '(previous : {2})'.format(n_iter, currentError, prevError))
+                print('Error on mini batch at iter {0} : {1} '
+                      '(Gradient norm : {2})'.format(n_iter, currentMbe, gradNorm))
                 prevError = currentError
             else:
-                print('Error on mini batch at iter {0} : {1} \
-                       (Gradient norm : {2})'.format(n_iter, currentMbe, gradNorm))
+                print('Error on mini batch at iter {0} : {1} '
+                      '(Gradient norm : {2})'.format(n_iter, currentMbe, gradNorm))
                 errMB.append(currentMbe)
 
             #Maj iter
             n_iter += 1
 
         if val_set != []:
-            print('Error on training set before and after training\
-                   ({2} iter) : {0}->{1}\n'.format(iniError, currentError, n_iter))
+            print('Error on training set before and after training'
+                  '({2} iter) : {0}->{1}\n'.format(iniError, currentError, n_iter))
         return errMB, errVal
 
     def score_fine(self, X_trees):
