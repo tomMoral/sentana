@@ -231,13 +231,12 @@ class RNN(object):
                 dWMask *= .7*(dWPrev*dWCurrent >= 0) + .5
                 dVMask *= .7*(dVPrev*dVCurrent >= 0) + .5
                 dLMask *= .7*(dLPrev*dLCurrent >= 0) + .5
-                #Il faut clipper tout de suite non ? ca evite les valeurs qui explosent
-                #si une direction reste tout le temps dans le meme sens                               
-                dWsCurrent = eta*dWsMask.clip(1e-6, 50,out=dWsMask)*dWsCurrent/np.sqrt(dWsHist)
-                dWCurrent = eta*dWMask.clip(1e-6, 50,out=dWMask)*dWCurrent/np.sqrt(dWHist)
-                dVCurrent = eta*dVMask.clip(1e-6, 20,out=dVMask)*dVCurrent/np.sqrt(dVHist)
-                dLCurrent = eta*dLMask.clip(1e-6, 20,out=dLMask)*dLCurrent/np.sqrt(dLHist)
-                
+
+                dWsCurrent = eta*dWsMask.clip(1e-6, 50, out=dWsMask)*dWsCurrent/np.sqrt(dWsHist)
+                dWCurrent = eta*dWMask.clip(1e-6, 50, out=dWMask)*dWCurrent/np.sqrt(dWHist)
+                dVCurrent = eta*dVMask.clip(1e-6, 20, out=dVMask)*dVCurrent/np.sqrt(dVHist)
+                dLCurrent = eta*dLMask.clip(1e-6, 20, out=dLMask)*dLCurrent/np.sqrt(dLHist)
+
             #Calcul de la norme du gradient (critere d'arret)
             gradNorm = np.sum(np.abs(dWsCurrent))
             gradNorm += np.sum(np.abs(dWCurrent))
@@ -249,7 +248,7 @@ class RNN(object):
             dWPrev = dWCurrent
             dVPrev = dVCurrent
             dLPrev = dLCurrent
-            
+
             #Descente
             self.Ws -= dWsCurrent
             self.W -= dWCurrent
