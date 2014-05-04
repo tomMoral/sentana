@@ -146,7 +146,7 @@ class RNN(object):
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
         '''
         #Remise à zero du modele
-        if warm_start == False:
+        if not warm_start:
             dim = self.dim
             self.V = 1e-5*np.ones((dim, 2*dim, 2*dim))
             #Initiate W, the linear operator
@@ -169,10 +169,10 @@ class RNN(object):
 
         #Gradients pour AdaGrad
         eta = learning_rate
-        dWsHist = np.ones(self.Ws.shape)
-        dVHist = np.ones(self.V.shape)
-        dWHist = np.ones(self.W.shape)
-        dLHist = np.ones(self.L.shape)
+        dWsHist = 1.2*np.ones(self.Ws.shape)
+        dVHist = 1.2*np.ones(self.V.shape)
+        dWHist = 1.2*np.ones(self.W.shape)
+        dLHist = 1.2*np.ones(self.L.shape)
 
         while (gradNorm > stop_threshold) and n_iter < max_iter:  # Critere moins random
             mini_batch_samples = np.random.choice(X_trees, size=mini_batch_size)
@@ -212,10 +212,10 @@ class RNN(object):
             dLCurrent = eta*dLCurrent/np.sqrt(dLHist)
 
             #Calcul de la norme du gradient (critere d'arret)
-            gradNorm = np.abs(np.sum(dWsCurrent))
-            gradNorm += np.abs(np.sum(dWCurrent))
-            gradNorm += np.abs(np.sum(dVCurrent))
-            gradNorm += np.abs(np.sum(dLCurrent))
+            gradNorm = np.sum(np.abs(dWsCurrent))
+            gradNorm += np.sum(np.abs(dWCurrent))
+            gradNorm += np.sum(np.abs(dVCurrent))
+            gradNorm += np.sum(np.abs(dLCurrent))
 
             #Descente
             self.Ws -= dWsCurrent
