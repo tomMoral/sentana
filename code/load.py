@@ -35,9 +35,9 @@ if __name__ == '__main__':
             sent = line.strip().split('|')
             sentences.append(sent)
             lexicon = lexicon.union(sent)
-            
+
     print 'Load data split'
-    with open(path.join(DATASET,'datasetSplit.txt')) as f:
+    with open(path.join(DATASET, 'datasetSplit.txt')) as f:
         whichSet = []
         f.readline()
         for line in f.readlines():
@@ -63,12 +63,12 @@ if __name__ == '__main__':
     X_trees_dev = []
     X_trees_test = []
     for s, t, k in zip(sentences, trees, whichSet):
-        if k==1:
+        if k == 1:
             X_trees_train.append(Tree(s, t, labels))
-        elif k==2:
-            X_trees_test.append(Tree(s,t,labels))
-        elif k==3:
-            X_trees_dev.append(Tree(s,t,labels))
+        elif k == 2:
+            X_trees_test.append(Tree(s, t, labels))
+        elif k == 3:
+            X_trees_dev.append(Tree(s, t, labels))
         else:
             raise(Exception('Erreur dans le parsing train/test/dev'))
     '''
@@ -79,8 +79,8 @@ if __name__ == '__main__':
     '''
     from RNN import RNN
     model = RNN(vocab=lexicon)
-    
-    model.train(X_trees_train,max_iter=10000,val_set=X_trees_dev)
+
+    model.train(X_trees_train, max_iter=10000, val_set=X_trees_dev)
 
     #rpz = model.compute(X_trees[0])
     #print rpz
