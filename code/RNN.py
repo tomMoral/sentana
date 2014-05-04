@@ -174,6 +174,12 @@ class RNN(object):
         dWHist = 1.2*np.ones(self.W.shape)
         dLHist = 1.2*np.ones(self.L.shape)
 
+        #Adaptative LR for RMSprop
+        dWsMask = 1*np.ones(self.Ws.shape)
+        dVMask = 1*np.ones(self.V.shape)
+        dWMask = 1*np.ones(self.W.shape)
+        dLMask = 1*np.ones(self.L.shape)
+
         dWsPrev = np.zeros(self.Ws.shape)
         dVPrev = np.zeros(self.V.shape)
         dWPrev = np.zeros(self.W.shape)
@@ -221,15 +227,10 @@ class RNN(object):
                 dWHist = 0.9*dWHist + 0.1*dWCurrent*dWCurrent
                 dLHist = 0.9*dLHist + 0.1*dLCurrent*dLCurrent
 
-                dWsMask = dWsPrev*dWsCurrent
-                dWMask = dWPrev*dWCurrent
-                dVMask = dVPrev*dVCurrent
-                dLMask = dLPrev*dLCurrent
-
-                dWsMask = 1.2*(dWsMask >= 0) + .5*(dWsMask < 0)
-                dWMask = 1.2*(dWMask >= 0) + .5*(dWMask < 0)
-                dVMask = 1.2*(dVMask >= 0) + .5*(dVMask < 0)
-                dLMask = 1.2*(dLMask >= 0) + .5*(dLMask < 0)
+                dWsMask *= .7*(dWsPrev*dWsCurrent >= 0) + .5
+                dWMask *= .7*(dWPrev*dWCurrent >= 0) + .5
+                dVMask *= .7*(dVPrev*dVCurrent >= 0) + .5
+                dLMask *= .7*(dLPrev*dLCurrent >= 0) + .5
 
                 dWsCurrent = eta*dWsMask*dWsCurrent/np.sqrt(dWsHist)
                 dWCurrent = eta*dWMask*dWCurrent/np.sqrt(dWHist)
