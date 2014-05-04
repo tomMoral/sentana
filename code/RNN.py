@@ -174,6 +174,11 @@ class RNN(object):
         dWHist = 1.2*np.ones(self.W.shape)
         dLHist = 1.2*np.ones(self.L.shape)
 
+        dWsPrev = np.zeros(self.Ws.shape)
+        dVPrev = np.zeros(self.V.shape)
+        dWPrev = np.zeros(self.W.shape)
+        dLPrev = np.zeros(self.L.shape)
+
         while (gradNorm > stop_threshold) and n_iter < max_iter:  # Critere moins random
             mini_batch_samples = np.random.choice(X_trees, size=mini_batch_size)
             #Initialize gradients to 0
@@ -199,23 +204,37 @@ class RNN(object):
             dWCurrent = dWCurrent/mini_batch_size+self.reg*self.W
             dLCurrent = dLCurrent/mini_batch_size+self.reg*self.L
 
-            #Mise a jour des poids
+            #Mise a jour des poids et calcul des pas
             if strat == 'AdaGrad':
                 dWsHist += dWsCurrent*dWsCurrent
                 dVHist += dVCurrent*dVCurrent
                 dWHist += dWCurrent*dWCurrent
                 dLHist += dLCurrent*dLCurrent
+
+                dWsCurrent = eta*dWsCurrent/np.sqrt(dWsHist)
+                dWCurrent = eta*dWCurrent/np.sqrt(dWHist)
+                dVCurrent = eta*dVCurrent/np.sqrt(dVHist)
+                dLCurrent = eta*dLCurrent/np.sqrt(dLHist)
             else:
                 dWsHist = 0.9*dWsHist + 0.1*dWsCurrent*dWsCurrent
                 dVHist = 0.9*dVHist + 0.1*dVCurrent*dVCurrent
                 dWHist = 0.9*dWHist + 0.1*dWCurrent*dWCurrent
                 dLHist = 0.9*dLHist + 0.1*dLCurrent*dLCurrent
 
-            #Calcul des pas pour la mise à jour des poids
-            dWsCurrent = eta*dWsCurrent/np.sqrt(dWsHist)
-            dWCurrent = eta*dWCurrent/np.sqrt(dWHist)
-            dVCurrent = eta*dVCurrent/np.sqrt(dVHist)
-            dLCurrent = eta*dLCurrent/np.sqrt(dLHist)
+                dWsMask = dWsPrev*dWsCurrent
+                dWMask = dWPrev*dWCurrent
+                dVMask = dVPrev*dVCurrent
+                dLMask = dLPrev*dLCurrent
+
+                dWsMask = 1.2*(dWsMask >= 0) + .5*(dWsMask < 0)
+                dWMask = 1.2*(dWMask >= 0) + .5*(dWMask < 0)
+                dVMask = 1.2*(dVMask >= 0) + .5*(dVMask < 0)
+                dLMask = 1.2*(dLMask >= 0) + .5*(dLMask < 0)
+
+                dWsCurrent = eta*dWsMask*dWsCurrent/np.sqrt(dWsHist)
+                dWCurrent = eta*dWMask*dWCurrent/np.sqrt(dWHist)
+                dVCurrent = eta*dVMask*dVCurrent/np.sqrt(dVHist)
+                dLCurrent = eta*dLMask*dLCurrent/np.sqrt(dLHist)
 
             #Calcul de la norme du gradient (critere d'arret)
             gradNorm = np.sum(np.abs(dWsCurrent))
