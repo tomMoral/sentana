@@ -223,11 +223,11 @@ class RNN(object):
             #Maj de la condition d'arret
             if val_set!=[] and (n_iter%n_check)==0:
                 currentError=self.error(val_set)
-                prevError=currentError
                 errVal.append(currentError)
                 errMB.append(currentMbe)
                 print('Error on validation set at iter {0} : {1} (previous : {2})'.format(n_iter,currentError,prevError))
                 print('Error on mini batch at iter {0} : {1} (Gradient norm : {2})'.format(n_iter,currentMbe,gradNorm))
+                prevError=currentError
             else:
                 print('Error on mini batch at iter {0} : {1} (Gradient norm : {2})'.format(n_iter,currentMbe,gradNorm))
                 errMB.append(currentMbe)
