@@ -242,6 +242,12 @@ class RNN(object):
             gradNorm += np.sum(np.abs(dVCurrent))
             gradNorm += np.sum(np.abs(dLCurrent))
 
+            #Keep previous gradient
+            dWsPrev = dWsCurrent
+            dWPrev = dWCurrent
+            dVPrev = dVCurrent
+            dLPrev = dLCurrent
+
             #Descente
             self.Ws -= dWsCurrent
             self.W -= dWCurrent
