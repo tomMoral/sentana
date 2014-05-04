@@ -13,6 +13,8 @@ if __name__ == '__main__':
                                      ' over the stanfor tree bank')
     parser.add_argument('--strat', type=str, default='AdaGrad',
                         help='Strategie for the learning. {AdaGrad, Rmsprop}')
+    parser.add_argument('--iter', type=int, default=1000,
+                        help='Nb max d\'iteration {default: 1000')
 
     args = parser.parse_args()
 
@@ -89,8 +91,7 @@ if __name__ == '__main__':
     from RNN import RNN
     model = RNN(vocab=lexicon)
 
-    #model.train(X_trees_train, max_iter=1000, val_set=X_trees_dev,
-    #            strat=args.strat)
+    model.train(X_trees_train, max_iter=1000, val_set=X_trees_dev,
+                strat=args.strat)
 
-    #rpz = model.compute(X_trees[0])
-    #print rpz
+    model.save('../data/exp1')
