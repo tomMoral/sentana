@@ -79,6 +79,8 @@ if __name__ == '__main__':
     '''
     from RNN import RNN
     model = RNN(vocab=lexicon)
+    
+    model.train(X_trees_train,max_iter=10000,val_set=X_trees_dev)
 
     #rpz = model.compute(X_trees[0])
     #print rpz
