@@ -232,10 +232,10 @@ class RNN(object):
                 dVMask *= .7*(dVPrev*dVCurrent >= 0) + .5
                 dLMask *= .7*(dLPrev*dLCurrent >= 0) + .5
 
-                dWsCurrent = eta*dWsMask*dWsCurrent/np.sqrt(dWsHist)
-                dWCurrent = eta*dWMask*dWCurrent/np.sqrt(dWHist)
-                dVCurrent = eta*dVMask*dVCurrent/np.sqrt(dVHist)
-                dLCurrent = eta*dLMask*dLCurrent/np.sqrt(dLHist)
+                dWsCurrent = eta*dWsMask.clip(1e-6, 50)*dWsCurrent/np.sqrt(dWsHist)
+                dWCurrent = eta*dWMask.clip(1e-6, 50)*dWCurrent/np.sqrt(dWHist)
+                dVCurrent = eta*dVMask.clip(1e-6, 50)*dVCurrent/np.sqrt(dVHist)
+                dLCurrent = eta*dLMask.clip(1e-6, 50)*dLCurrent/np.sqrt(dLHist)
 
             #Calcul de la norme du gradient (critere d'arret)
             gradNorm = np.sum(np.abs(dWsCurrent))
