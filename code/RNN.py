@@ -27,7 +27,7 @@ class RNN(object):
         self.Ws = 1e-5*np.ones((5, dim))
 
         #Regularisation
-        self.reg = 0.1
+        self.reg = 0.0001
 
         #Initiate L, the Lexicon representation
         self.L = np.random.uniform(-r, r, size=(len(vocab), dim))
@@ -140,7 +140,7 @@ class RNN(object):
         return dWs, dV, dW, dL
 
     def train(self, X_trees, learning_rate=1.0, mini_batch_size=25,
-              warm_start=True, r=5, max_iter=1000, val_set=[], stop_threshold=10**(-10),
+              warm_start=True, r=0.0001, max_iter=1000, val_set=[], stop_threshold=10**(-10),
               n_check=100, strat='AdaGrad'):
         '''
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
@@ -169,16 +169,16 @@ class RNN(object):
 
         # Normalisation pour AdaGrad/Rms-prop
         eta = learning_rate
-        dWsHist = 1.2*np.ones(self.Ws.shape)
-        dVHist = 1.2*np.ones(self.V.shape)
-        dWHist = 1.2*np.ones(self.W.shape)
-        dLHist = 1.2*np.ones(self.L.shape)
+        dWsHist = np.ones(self.Ws.shape)
+        dVHist = np.ones(self.V.shape)
+        dWHist = np.ones(self.W.shape)
+        dLHist = np.ones(self.L.shape)
 
         #Adaptative LR for RMSprop
-        dWsMask = 1*np.ones(self.Ws.shape)
-        dVMask = 1*np.ones(self.V.shape)
-        dWMask = 1*np.ones(self.W.shape)
-        dLMask = 1*np.ones(self.L.shape)
+        dWsMask = np.ones(self.Ws.shape)
+        dVMask = np.ones(self.V.shape)
+        dWMask = np.ones(self.W.shape)
+        dLMask = np.ones(self.L.shape)
 
         dWsPrev = np.zeros(self.Ws.shape)
         dVPrev = np.zeros(self.V.shape)
@@ -231,12 +231,13 @@ class RNN(object):
                 dWMask *= .7*(dWPrev*dWCurrent >= 0) + .5
                 dVMask *= .7*(dVPrev*dVCurrent >= 0) + .5
                 dLMask *= .7*(dLPrev*dLCurrent >= 0) + .5
-
-                dWsCurrent = eta*dWsMask.clip(1e-6, 50)*dWsCurrent/np.sqrt(dWsHist)
-                dWCurrent = eta*dWMask.clip(1e-6, 50)*dWCurrent/np.sqrt(dWHist)
-                dVCurrent = eta*dVMask.clip(1e-6, 20)*dVCurrent/np.sqrt(dVHist)
-                dLCurrent = eta*dLMask.clip(1e-6, 20)*dLCurrent/np.sqrt(dLHist)
-
+                #Il faut clipper tout de suite non ? ca evite les valeurs qui explosent
+                #si une direction reste tout le temps dans le meme sens                               
+                dWsCurrent = eta*dWsMask.clip(1e-6, 50,out=dWsMask)*dWsCurrent/np.sqrt(dWsHist)
+                dWCurrent = eta*dWMask.clip(1e-6, 50,out=dWMask)*dWCurrent/np.sqrt(dWHist)
+                dVCurrent = eta*dVMask.clip(1e-6, 20,out=dVMask)*dVCurrent/np.sqrt(dVHist)
+                dLCurrent = eta*dLMask.clip(1e-6, 20,out=dLMask)*dLCurrent/np.sqrt(dLHist)
+                
             #Calcul de la norme du gradient (critere d'arret)
             gradNorm = np.sum(np.abs(dWsCurrent))
             gradNorm += np.sum(np.abs(dWCurrent))
@@ -248,7 +249,7 @@ class RNN(object):
             dWPrev = dWCurrent
             dVPrev = dVCurrent
             dLPrev = dLCurrent
-
+            
             #Descente
             self.Ws -= dWsCurrent
             self.W -= dWCurrent
