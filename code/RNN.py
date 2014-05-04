@@ -207,7 +207,7 @@ class RNN(object):
                 dLHist += dLCurrent*dLCurrent
             else:
                 dWsHist = 0.9*dWsHist + 0.1*dWsCurrent*dWsCurrent
-                dVHist = 0.9*dWHist + 0.1*dVCurrent*dVCurrent
+                dVHist = 0.9*dVHist + 0.1*dVCurrent*dVCurrent
                 dWHist = 0.9*dWHist + 0.1*dWCurrent*dWCurrent
                 dLHist = 0.9*dLHist + 0.1*dLCurrent*dLCurrent
 
