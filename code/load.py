@@ -7,6 +7,15 @@ from Tree import Tree
 DATASET = '../data'
 if __name__ == '__main__':
 
+    import argparse
+
+    parser = argparse.ArgumentParser('Run a RNN sentiment tree analysis'
+                                     ' over the stanfor tree bank')
+    parser.add_argument('--strat', type=str, default='AdaGrad',
+                        help='Strategie for the learning. {AdaGrad, Rmsprop}')
+
+    args = parser.parse_args()
+
     print 'Load Trees...'
     with open(path.join(DATASET, 'STree.txt')) as f:
         trees = []
@@ -80,7 +89,8 @@ if __name__ == '__main__':
     from RNN import RNN
     model = RNN(vocab=lexicon)
 
-    model.train(X_trees_train, max_iter=1000, val_set=X_trees_dev)
+    model.train(X_trees_train, max_iter=1000, val_set=X_trees_dev,
+                strat=args.strat)
 
     #rpz = model.compute(X_trees[0])
     #print rpz

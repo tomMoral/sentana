@@ -87,7 +87,7 @@ class RNN(object):
                 X = np.append(aT.X, bT.X)
             else:
                 X = np.append(bT.X, aT.X)
-            pT.X = self.f(X)  # Misea jour du decripteur du parent
+            pT.X = self.f(X)  # Mise a jour du decripteur du parent
             pT.ypred = self.y(pT.X)  # Mise a jour du label predit
             errorVal += -np.sum(pT.y*np.log(pT.ypred))
         #E = sum([(self.y(n.X) - n.y) for n in X_tree.nodes])
@@ -141,7 +141,7 @@ class RNN(object):
 
     def train(self, X_trees, learning_rate=1.0, mini_batch_size=25,
               warm_start=True, r=5, max_iter=1000, val_set=[], stop_threshold=10**(-10),
-              n_check=100):
+              n_check=100, strat='AdaGrad'):
         '''
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
         '''
@@ -167,7 +167,7 @@ class RNN(object):
             iniError = prevError
             errVal.append(prevError)
 
-        #Gradients pour AdaGrad
+        # Normalisation pour AdaGrad/Rms-prop
         eta = learning_rate
         dWsHist = 1.2*np.ones(self.Ws.shape)
         dVHist = 1.2*np.ones(self.V.shape)
@@ -199,13 +199,19 @@ class RNN(object):
             dWCurrent = dWCurrent/mini_batch_size+self.reg*self.W
             dLCurrent = dLCurrent/mini_batch_size+self.reg*self.L
 
-            #Mise a jour des poids pour l'AdaGrad
-            dWsHist += dWsCurrent*dWsCurrent
-            dVHist += dVCurrent*dVCurrent
-            dWHist += dWCurrent*dWCurrent
-            dLHist += dLCurrent*dLCurrent
+            #Mise a jour des poids
+            if strat == 'AdaGrad':
+                dWsHist += dWsCurrent*dWsCurrent
+                dVHist += dVCurrent*dVCurrent
+                dWHist += dWCurrent*dWCurrent
+                dLHist += dLCurrent*dLCurrent
+            else:
+                dWsHist = 0.9*dWsHist + 0.1*dWsCurrent*dWsCurrent
+                dVHist = 0.9*dWHist + 0.1*dVCurrent*dVCurrent
+                dWHist = 0.9*dWHist + 0.1*dWCurrent*dWCurrent
+                dLHist = 0.9*dLHist + 0.1*dLCurrent*dLCurrent
 
-            #Calcul des gradients apres AdaGrad
+            #Calcul des pas pour la mise à jour des poids
             dWsCurrent = eta*dWsCurrent/np.sqrt(dWsHist)
             dWCurrent = eta*dWCurrent/np.sqrt(dWHist)
             dVCurrent = eta*dVCurrent/np.sqrt(dVHist)
