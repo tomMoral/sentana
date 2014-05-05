@@ -95,3 +95,10 @@ if __name__ == '__main__':
                 strat=args.strat)
 
     model.save('../data/exp1')
+
+    sa_trn, sr_trn = model.score_fine(X_trees_train)
+    sa_val, sr_val = model.score_fine(X_trees_dev)
+    sa_tst, sr_tst = model.score_fine(X_trees_test)
+    print 'Fine grain\tTrain\tTest\tValidation'
+    print 'Overall\t\t{:.3}\t{:.3}\t{:.3}'.format(sa_trn, sa_tst, sa_val)
+    print 'Root\t\t{:.3}\t{:.3}\t{:.3}'.format(sr_trn, sr_tst, sr_val)

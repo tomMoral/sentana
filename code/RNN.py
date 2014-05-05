@@ -38,7 +38,8 @@ class RNN(object):
         self.f = lambda X: np.tanh(X.T.dot(self.V).dot(X) + self.W.dot(X))
         self.grad = lambda f: 1-f**2
 
-        self.y = lambda x: np.exp(self.Ws.dot(x)) / sum(np.exp(self.Ws.dot(x)))
+        self.y = lambda x: np.exp(self.Ws.dot(x).clip(-700, 700)) \
+            / sum(np.exp(self.Ws.dot(x).clip(-700, 700)))
 
     def save(self, saveFile):
         with open(saveFile, 'wb') as output:
@@ -95,7 +96,7 @@ class RNN(object):
         #return self.Ws.dot(pT.X) -> Pas besoin de retourner le lbel, il faut le maj aussi?
         return errorVal
 
-    def backward_pass(self, X_tree):
+    def backward_pass(self, X_tree, root=False):
         '''
         Retourne le gradient du a l'erreur commise sur l'arbre X_tree
         Attention: suppose la forward_pass faite
@@ -316,3 +317,17 @@ class RNN(object):
                 countRoot += 1
                 scRoot += np.argmax(M.dot(n.y)) == np.argmax(M.dot(n.ypred))
         return scAll/countAll, scRoot/countRoot
+
+    def score_binary2(self, X_trees):
+        '''
+        Score sur les prediction MAP pos/neg
+        '''
+        countRoot = 0
+        scRoot = 0.0
+        V = np.mat('0.1,0.3,0.5,0.7,0.9')
+        for X_tree in X_trees:
+            self.forward_pass(X_tree)
+            n = X_tree.nodes[-1]
+            countRoot += 1
+            scRoot += ((V.dot(n.y) > .5) - (V.dot(n.ypred) > .5)) ** 2
+        return scRoot/countRoot
