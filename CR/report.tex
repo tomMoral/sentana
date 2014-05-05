@@ -367,7 +367,7 @@ bertrand.rondepierre@polytechnique.edu}}
 
 
 \begin{abstract}
-Dans ce travail on étudie un modèle de réseau de neurones récursif tensoriel utilisé pour faire de la prédiction de sentiments.
+Dans ce travail on s'intéresse à une problématique d'analyse de sentiments sur des phrases de taille courte à moyennes. Nous nous basons sur le travail de R. Socher \cite{Socher-etal:2013} dont nous reprenons les grandes lignes en les précisant et en l'accompagnant d'une réimplémentation complète de l'algorithme en Python (ainsi que certaines figures pour la clarté de l'exposé). Les méthodes employées entre dans la catégorie du Deep learning, et en particulier dans la classe des réseaux de neurones récurrents.
 \end{abstract}
 % IEEEtran.cls defaults to using nonbold math in the Abstract.
 % This preserves the distinction between vectors and scalars. However,
@@ -393,13 +393,196 @@ Dans ce travail on étudie un modèle de réseau de neurones récursif tensoriel
 
 
 %%%%%%%%%% Introduction %%%%%%%%%%%%%
-\section{Entrainement du modèle}
-\subsection{Critère d'entrainement}
-En notant $\theta=(W,W_s,V,L)$ les paramètres du modèle on définit l'énergie suivante à partir de la distance de Kullback-Leibler (le signe moins est bien présent contrairement à la formule donnée dans l'article) :
-$$E(\theta)=-\sum_{i\in Noeuds}\sum_{j=1}^C t^i_j\log y^i_j+\lambda ||\theta||^2$$
-Pour simplifier les notations, on réservera l'index $i$ aux noeuds du réseau.
+\section{Introduction}
+Après avoir été abandonnées dans les années 80 devant le manque de technique d'entrainement efficace, le domaine du deep learning est à nouveau en plein essor depuis 2006 notamment depuis les travaux de G. Hinton et Y. Bengio \cite{Hinton:2006:FLA:1161603.1161605,HintonSalakhutdinov2006b,Bengio2007} qui ont abouti à des technique d'entrainement efficaces. Ce problème d'entrainement des modèle est la raison qui avait freiné le développement des réseaux de neuronnes, et bien qu'étant loin d'être résolu, des progrès majeurs ont été faits. De plus, la combinaison des facteurs : mise au point de techniques d'entrainement effectives, augmentation des capacités de stockage, démultiplication de la puissance de calcul a ainsi permis d'atteindre l'état de l'art sur un large spectre de tâches allant de la reconnaissance d'objet au traitement des langues, et en passant par de nombreux domaines d'intérêt du machine learning. 
 
-\subsection{Equations de backpropogation}
+\subsection{Idées générales et inspirations du deep learning}
+L'idée générale du deep learning est de s'inspirer de la physiologie du cerveau humain pour mimiquer de possible mécanismes d'apprentissage. L'aspect profond vient d'une part de cette idée que le cerveau humain organise les neurones par couches et d'autre part de l'idée que les concepts ne s'apprennent pas en se définissant par de nombreux exemples particuliers mais plutôt en généralisant l'information que chacun des élément apporte.
+
+Ceci est parfaitement illustré par l'exemple en figure \ref{3ex} : bien qu'ayant une expérience limitée en l'occurrence sur des moyens de locomotion, nous sommes parfaitement capable d'inférer le type de chacun des véhicules du haut (scooter et vélo) malgré l'écart qu'ils entretiennent avec le modèle moyen. De plus, bien que le troisième exemple soit tout à fait inconnu et d'un type sujet à controverse, nous sommes parfaitement capable de reconnaître qu'il s'agit d'un véhicule, d'un mélange entre plusieurs classes connues entre le scooter, la voiture, le vélo etc.
+\begin{figure}[H]
+\includegraphics[width=\columnwidth]{fig/Diapositive1.png}
+\caption{Trois exemples : en haut de gauche à droite : un scooter et un vélo clairement en marge du modèle moyen. En bas un moyen de locomotion étrange.}
+\label{3ex}
+\end{figure}
+
+Le processus précédent est rendu possible par notre capacité à généraliser les exemples en concepts. Et c'est exactement la problématique qu'essaie d'aborder le deep learning, où l'aspect profond peut donc également être vu comme cette capacité à généraliser des exemples particuliers par de représentation de plus en plus abstraites suggérant cette idée de couches profondes. Par exemple pour des images ou des objets, on peut imaginer un modèle profond où une première couche constituera les arrêtes visibles au niveau des pixels, puis la seconde celle des parties des objets, puis celle des objets complets, puis les scènes complètes etc... En résumé sur le diagramme suivant : 
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\node[draw,rectangle] (Im) at (0,0) {Données};
+\node[draw,rectangle] (St) at (2,2) {Concepts abstraits};
+\node[draw,rectangle] (Lab) at (4,0) {Labels};
+
+\draw[->] (St) -- (Im);
+\draw[->] (St) -- (Lab);
+\end{tikzpicture}
+\caption{Approche logique}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\node[draw,rectangle] (Im) at (0,0) {Données};
+\node[draw,rectangle] (St) at (2,2) {Concepts abstraits};
+\node[draw,rectangle] (Lab) at (4,0) {Labels};
+
+\draw[->] (St) -- (Im);
+\draw[->] (Im) -- (Lab);
+\end{tikzpicture}
+\caption{Approche classique, mais illusoire}
+\label{stuff}
+\end{figure}
+
+Tout l'enjeu consiste à dire que finalement ce n'est pas vraiment le label qui va être le plus informatif pour construire ces concepts et ces représentations, et qu'il s'agit plus d'une conséquence que d'un identificateur clé. Pour cette raison, l'objectif majeur est d'inverser les transformations que subissent les concepts abstraits pour générer les données sur lesquelles nous travaillons. Une fois que l'on dispose de cela, prendre une décision devient facile.
+
+\subsection{Base du deep learning}
+\subsubsection{Le modèle de neurone}
+Un neurone peut-être vu comme la plus simple unité computationelle prenant en entrée un signal $x^{input}\in\mathbb{R}^n$, et retournant une sortie $x^{output}$ en combinant d'une part une opération affine et d'autre part un opération non-linéaire $f$:
+\begin{align*}
+x^{input}&=x \\
+x^{output}&=f(Wx^{hidden}+B)
+\end{align*}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\columnwidth]{fig/SingleNeuron.png}
+\caption{Un neurone simple}
+\label{Neurone}
+\end{figure}
+En général la non-linéarité est choisie entre une sigmoïde, une tangente hyperbolique ou encore des fonctions linéaires rectifiées. L'idée est alors de constituer un réseau avec un modèle graphique dans lequel on accumule un grand nombre de neurones répartis dans de (plus ou moins) nombreuses couches.
+
+L'entrainement du modèle se fait alors soit de façon supervisée en ajoutant par exemple une couche de multi-layer perceptron et en optimisant le risque empirique, soit de façon non supervisée en entrainant le réseau comme un modèle génératif sur un critère de type maximum de vraisemblance. Le but est alors d'obtenir une représentation qui permette d'accomplir facilement un certain nombre de tâches, et ici en l'occurrence ce qui nous intéresse est la classification de sentiments.
+
+\subsubsection{Sur la nécessité de la non-linéarité}
+Une remarque importante qu'il convient de faire à ce niveau est celle de la présence de la non-linéarité $f$ dans le modèle du neurone. Celle-ci est également une des idées clés du deep learning puisque dans la réalité, l'hypothèse de linéarité n'est certainement pas valables dans les représentations de bas niveau. En revanche c'est bien le cas dans l'espace des concepts dans lequel on essaye de travailler (ce qui n'est bien entendu pas encore réussi) où comme on l'a dit les décisions sont simples : différencier un vélo d'une voiture est très facile. Un modèle linéaire peut donc être parfaitement satisfaisant à condition d'être appliqué dans le bon espace. Cependant une composition de transformations linéaires reste linéaire et il est donc nécessaire d'introduire de la linéarité à un endroit donné. Cette non linéarité sur les représentations de bas niveau est évidente en considérant des exemples où deux objets vont être tout à fait identique du point de vue des concepts, mais avec des formes/textures/couleurs complètement différentes.
+
+\subsubsection{Le théorème d'approximation universelle}
+Une des garantie rassurante dans l'emploi de réseaux de neuronnes pour l'apprentissage de fonctions complexes est celle du théorème d'approximation universel (voir par exemple \cite{Hassoun:1995:FAN:526717}). En effet, celui-ci affirme que pour des fonctions d'activation données, un réseau de neuronne est en mesure d'approximer n'importe quelle fonction continue sur un compact. Plus précisément :
+
+\begin{theorem}[Approximation universelle]
+Si $f$ est une fonction continue, bornée, strictement croissante, en notant $I_m$ l'hypercube $[0,1]^m$ et $C(I_m)$ les fonctions continues sur $I_m$ alors pour toute fonction $r\in C(I_m)$ et $\varepsilon>0$, il existe $N$ et des constantes $a_i,b_i,w_i$ respectivement dans $\mathbb{R},\mathbb{R},\mathbb{R}^m$ telles que 
+$$F(x)=\sum_{i=1}^N a_i f(w_i^T x+b_i)$$
+vérifie : $||F-r||_\infty^{I_m}<\varepsilon$. Autrement dit on a densité dans $C(I_m)$.
+\end{theorem}
+
+Ce théorème peut-être prouvé toujours valable dans le cas des rectified linear unit avec le max qui n'est plus borné et strictement croissant. La preuve repose sur l'approximation de fonctions convexes par des fonctions affines par morceau et le fait qu'une fonction continue peut s'écrire comme différence de deux fonctions convexes. Voir \cite{2013arXiv1302.4389G}.
+
+En résumé on a espoir de dire qu'il existe effectivement une fonction qui va permettre de mapper les entrées vers une représentation intéressante, et le théorème précédent permet de dire qu'il est effectivement possible d'apprendre ces fonctions avec un réseau de neurones.
+
+Il faut cependant bien noter plusieurs choses : si l'approximation universelle est toujours valable, la question de quelles fonctions peuvent être approximées le plus efficacement avec des architecture de profondeur fixée reste toujours ouverte. En revanche on peut prouver que certaines fonctions représentables facilement avec une architecture de profondeur donnée requièrent avec une architecture de profondeur moindre un nombre de neurone exponentiellement plus grand. Cette idée suggère que la profondeur joue un rôle clef dans l'apprentissage de ces fonctions. 
+
+\subsubsection{Entrainement des réseaux de neurones}
+Malgré les garanties théoriques issues de l'approximation universelle ou de la théorie de Vapnik-Chervonenkis, le problème reste d'entrainer effectivement et efficacement les modèles de réseau de neurones. En effet, ceux-ci exhibent des courbures pathologiques qui nécessiteraient l'emploi de méthode du second ordre afin d'être prise en compte, ce qui est malheureusement actuellement trop couteux du fait du nombre de paramètres qui est destiné à être grand.
+
+L'idée est donc de se fixer un critère de type risque empirique ou maximum de vraisemblance selon le cadre dans lequel on se trouve, ce qui se réduit toujours à l'optimisation d'une fonction $E(\theta)$ où $\theta$ est l'ensemble des paramètres du modèle. Le nombre de paramètres étant toujours extrêmement élevé, les méthodes du second ordre impliquant notamment une inversion de la Hessienne sont totalement prohibées. On est alors réduit à toutes les méthodes du premier ordre de type gradient stochastique afin de faire face à des bases de données où le nombre d'exemplaires d'entrainement explose. 
+
+
+On calcule donc le gradient de $E$ par rapport à ses paramètres. Ce calcul n'est pas toujours simple comme on le verra dans le cas particulier du modèle auquel on s'intéresse pour lequel on explicitera le calcul complet. En effet, du fait de la structure de couche du réseau (et en plus du caractère récurrent dans le cas qui nous intéresse), le calcul du gradient se fait par rétropropagation, c'est à dire que l'erreur se rétropropage du haut du réseau vers le bas. En effet, dans la mesure où les valeurs au nœuds supérieurs sont fonctions de celles aux niveaux inférieurs, on voit bien qu'en dérivant on va devoir propager de haut en bas ces gradients.
+
+Les principes directeurs communément accepté à l'heure actuelle sont les suivants (voir également \cite{DBLP:journals/corr/abs-1206-5533}, ou les dernier travaux du groupe de Yann Le Cun et notamment le dernier article "No more pesky learning rate" : 
+\begin{enumerate}
+\item Une bonne stratégie d'initialisation des paramètres : c'est le premier progrès réalisé par Hinton en 2006 qui a eu l'idée d'entrainer ses réseaux couche par couche et d'utiliser la sortie pour entrainer la couche suivante. Cette stratégie dite de "greedy layerwise training" permet d'obtenir la plupart du temps une initialisation raisonnable du modèle, qui on l'a constaté est expérimentalement capitale pour obtenir des résultats corrects.
+\item Pour stabiliser les méthodes de type gradient stochastique, il est également préférable d'utiliser à chaque itération un ensemble dit mini-batch de quelques exemplaires pour obtenir une estimation moins bruitée du gradient plutôt qu'un seul exemplaire.
+\item On utilise alors un algorithme du premier ordre de préférence assez robuste aux valeurs choisies pour les paramètres, typiquement le learning rate dont va grandement dépendre le résultat du modèle. Une méthode à learning rate fixé a peu de chance d'être fructueuse, et il est conseillé d'utiliser des méthodes d'adaptation du learning rate avec les itérations, par exemple RPROP \cite{Riedmiller93adirect}, RMSPROP (Non publié, voir cours de machine learning de Geoff Hinton), AdaGrad \cite{Duchi:2011:ASM:1953048.2021068} ou encore les méthodes de Newton tronquées (ou Hessian-free optimization, voir Mertens et al.\cite{conf/icml/Martens10}).
+\item Il est enfin recommandé d'utiliser des architectures qui vont probablement être à la limite de l'overfitting, cependant ici c'est considéré comme une bonne chose, et pour éviter que cela arrive effectivement, on emploie des techniques telles que le dropout (consistant à aléatoirement éteindre des noeuds du réseaux pour éviter la coadaptation des unités), ou encore l'early stopping.
+\end{enumerate}
+
+On mentionnera également des méthodes d'accélération de type momentum, gradient accéléré de Nesterov et autres. Ces méthodes sont subtilement reliées les unes aux autres comme l'explique un article non publié de Ilya Sutskever ("On the importance of momentum and initialization in deep learning")expliquant les rapports entre ces méthodes de gradient accéléré et des méthodes de type hessian-free. 
+
+\section{Exposition de la problématique}
+Suivant le travail de Richard Socher, nous avons voulu appliquer une technique de deep learning réputée à l'état de l'art sur l'analyse de texte, et plus particulièrement sur l'analyse de sentiments.
+
+\subsubsection{Classification de sentiments}
+%Explication des 5 classes et justification
+Comme expliqué dans l'article \cite{Socher-etal:2013}, si la classification binaire peut paraître un peu restrictive pour capturer les différentes nuances de langage, un modèle à 5 classes : très négatif, négatif, neutre, positif et très positif permet de capturer la majeure partie de l'information nécessaire afin de classifier les sentiments. Cette observation se fait par rapport à l'annotation de la base de donnée employée (présentée ci-après), où les annotateur disposaient de 7 niveaux de notation des sentiments, et n'utilisaient finalement majoritairement que le neutre et les extrêmes. Ceci a donc poussé à considérer un problème à 5 classes qui capture donc l'essentiel de la variabilité des données.
+
+Ces observations se voient clairement sur la figure de l'article que l'on reprend en figure \ref{Sent}
+\begin{figure*}
+\includegraphics[width=\textwidth]{fig/Sent.png}
+\caption{Observation de classification humaine sur la base sentiment treebank}
+\label{Sent}
+\end{figure*}
+
+L'autre observation qu'il est importante de faire est celle du sentiment ressenti pour les mots seuls : on constate qu'essentiellement les mots sont neutres sauf exception, et les nuances de sentiments apparaissent proportionnellement à la longueur des n-grammes. Ceci explique deux faits :
+\begin{itemize}
+\item D'une part le succès des approches de type sac de mots sur de longs textes qui permettent de capturer les sentiments par la présence de nombreux mots associés à des sentiments forts, et diluant ainsi les tournures subtiles et négations complètes.
+\item D'autre part l'échec de ces mêmes approches pour des phrases plus courtes (Twitter) dans lesquelles le nombre d'occurrences de mots traduisant clairement des sentiments est plus faible, et surtout qui peut être complètement mis en défaut par une négation ou double négation en tête de subordonnée par exemple.
+\end{itemize}
+
+On voit donc apparaitre la nécessite de prendre en compte non-seulement le sentiment que traduisent les mots, mais surtout la structure de la phrase, ceci incluant les nuances subtiles telles que les négations. Pour cette raison on s'intéresse à des modèles de réseaux de neurones dits récurent, qui permettent de prendre en compte la structure de la phrase (d'où le terme de récurrence).
+
+\subsubsection{Base de donnée sentiment treebank}
+%Présentation de la base avec des schémas.
+Pour cette article, Socher et al. ont introduit une nouvelle base de donnée pour les sentiments. Comme expliqué ci-dessus, il s'agit d'une base de données comportant des phrases extraites de critiques de films (rotentomatoes), qui ont été passées dans le parseur de Stanford pour construire un arbre qui représente la phrase et dans lequel chacun des nœuds a été étiqueté avec l'un des 5 labels en fonction du sentiment qu'il représente. On présente deux exemples en figure \ref{trees}.
+
+\begin{figure*}
+\begin{subfigure}{0.45\textwidth}
+\includegraphics[width=\textwidth]{fig/TB20.png}
+\caption{Arbre 20}
+\end{subfigure}
+\begin{subfigure}{0.45\textwidth}
+\includegraphics[width=\textwidth]{fig/TB311.png}
+\caption{Arbre 311}
+\end{subfigure}
+\caption{Deux exemple d'arbres parsés et étiquetés.}
+\label{trees}
+\end{figure*}
+
+Cette base de donnée permet donc bien de prendre en compte les structures et subtilités telles que les négations de proposition comportant des termes positifs qui devient alors à connotation négative. Cela donne également la structure nécessaire à l'application d'un modèle récursif, mais demande donc de modifier quelque peu la structure d'un réseau de neurone pour prendre en compte la structure d'arbre. Nous l'exposons dans ce qui suit.
+
+\section{Modèle de réseau de neurone récursif tensoriel}
+
+Un modèle de réseau de neurones récursif appliqué sur du texte se présente sous la forme de la figure \ref{RNN}.
+
+\begin{figure}
+\centering
+\includegraphics[width=0.75\columnwidth]{fig/RNN.png}
+\caption{Schéma des réseaux de neurones récursifs}
+\label{RNN}
+\end{figure}
+
+Le principe est de construire un arbre à partir de la phrase à analyser, soit à l'aide d'un parseur comme celui de Stanford, soit en utilisant des structures fixes telles qu'un arbre de forme peigne à droite ajoutant un mot à chaque niveau. Bien sûr, pour être efficace, la structure doit prendre en compte la structure de la phrase et il est donc clair qu'utiliser le parseur plutôt qu'une structure fixe conduira à de meilleurs résultats.
+
+Le point commun à tous ces modèles est le suivant : on choisit une représentation pour les mots (par exemple : vecteurs n-dimensionnels ou couples matrices vecteurs). Ensuite pour passer des nœuds disposant d'une représentation (les feuilles à la base qui sont des mots et qui l'ont donc déjà par construction du modèle), on utilise une opération de type neuronale pour construire la représentation des $x^i$ (notation de la figure \ref{RNN}), ie pour le nœud $i$ ayant les enfants $i_1$ et $i_2$ :
+$$x^i=g(x^{i_1},x^{i_2})$$
+Où l'opération $g$ est à définir en fonction du type de réseau choisi. On détaille ces deux points pour les trois modèles classiques (qui sont ceux présentés dans l'article de Socher)
+
+Ensuite sur chacun des noeuds on ajoute un classifieur de type softmax :
+$$x^i\longrightarrow y^i=\frac{exp{\left(W_s x^i_j\right)}}{\sum_{j}exp{\left(W_s x^i_j\right)}}$$
+Où $W_s$ est un paramètre du modèle qu'il faudra ajuster conjointement avec autres.
+
+\subsection{Modèles de la littérature}
+\subsubsection{Réseau récursif simple}
+Dans ce modèle on choisi une représentation d-dimensionnelle pour les mots, et on utilise une opération neuronale non modifiée pour calculer la représentation des nœuds supérieurs à partir de leurs enfants (ici on choisit de travailler sur des digrammes généralisés, cependant le raisonnement est exactement le même si l'on souhaite utiliser des trigrammes ou des modèles plus larges) :
+
+$$x^i=g(x^{i_1},x^{i_2})=f\left(W\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix}+b\right)$$
+Où $W\in\mathbb{R}^{d\times 2d}$ et $b\in\mathbb{R}^{d}$ et f est la fonction d'activation du réseau. Dans ce modèle, l'essentiel de l'information est contenu dans la matrice $W$ qui va encoder les relations de compositionalité, ce qui n'est cependant pas tout à fait satisfaisant car ne laisse pas énormement de place pour capturer des structures subtiles. Cependant il est suffisamment peu complexe pour être entrainé correctement.
+
+\subsubsection{Réseau récursif vecteur-matrice}
+Pour ce modèle, au lieu de choisir une représentation d-dimensionnelle simple, on cherche à encoder les différentes relations de compositionnalité entre les mots dans une matrice associée dans la représentation de chacun d'entre eux. Ainsi les mots sont représentés par couple $(x^i,X^i)$, où $x\in\mathbb{R}^d$, et $X^{i}\in\mathbb{R}^{d\times d}$ et les opérations à effectuer pour passer au niveau suivant sont alors :
+
+$$x^i=g(x^{i_1},x^{i_2})=f\left(W\begin{bmatrix} X^{i_2}x^{i_1} \\ X^{i_1}x^{i_2} \end{bmatrix}+b\right)$$
+$$X^i=g_M(X^{i_1},X^{i_2})=f\left(W_M\begin{bmatrix} X^{i_1} \\ X^{i_2} \end{bmatrix}+b_M\right)$$
+avec $W,W_M,b,b_M$ à nouveau les paramètres du modèle. Ce modèle a le mérite d'encoder les relation de compositionalité, mais ceci a un coup très élevé : pour chaque mot (le dictionnaire est destiné par nature à être large), il faut avoir un couple dont le nombre total de coefficients est $d+d^2$. Ceci peut rapidement exploser en terme de nombre de paramètre, et surtout en terme d'entrainement cela pose un gros problème car il faut optimiser sur tous ceux-ci, ce qui devient extrêmement difficile à faire efficacement avec des méthodes du premier ordre de type gradient stochastique.
+
+\subsubsection{Réseau récursif tensoriel}
+Ce modèle est celui qui a été retenu pour faire les essais puisqu'il allie la simplicité du modèle à une possibilité d'encoder les relations de compositionnalité de façon relativement explicite et ceci pour un coup guère plus élevé que le réseau récursif simple, et beaucoup moins élevé que pour un réseau récursif matrice-vecteur. On choisit donc de même que le simple un représentation des mots dans $\mathbb{R}^d$. La différence majeure se fait dans la fonction $g$ où on ajoute un terme tensoriel censé prendre en compte l'aspect de compositionnalité, conjugué au terme linéaire simple. En bref :
+
+$$x^i=f\left(\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix}^T V^{[1:d]}\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix} + W\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix}\right)$$
+Où $W\in\mathbb{R}^{d\times 2d}$, $V$ est un tenseur et pour $h=\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix}^T V^{[1:d]}\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix}$ on a : $h_j=\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix}^T V^{[j]}\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix}$, c'est à dire $V\in\mathbb{R}^{d\times 2d\times 2d}$. Il semble que ce modèle permet de trouver un intermédiaire entre un modèle trop simple, et un modèle trop complet difficilement entrainable. On voit dans la partie suivante comment effectuer l'entrainement, et en particulier le calcul des équations de rétropropagation.
+
+\subsubsection{Modèles de sacs de mots}
+Enfin, la dernière approche qui n'est pas du deep learning est celle des méthodes dites de sacs de mots consistant à fixer un vocabulaire (éventuellement en le réduisant ou en construisant un dictionnaire plus élaboré qu'un simple comptage), puis construire pour chaque exemplaire à classifier un histogramme des mots de ce vocabulaire présents dans le texte. Après cela, on utilise ces histogramme pour entrainer un classifieur (SVM, Bayésien naïf) utilisé ensuite sur les exemplaires de test. Cette démarche peut également être utilisée exactement de la même manière en augmentant le nombre de mots utilisés simultanément, en choisissant par exemple de travailler sur des bigrammes ou des trigrammes. Cependant comme on peut le voir il s'agit d'une estimation ne reposant ni sur la structure, ni l'ordre des mots présents. L'approche est cependant assez efficace, notamment sur de long textes.
+
+\subsection{Critère d'entrainement}
+Dorénavant on s'intéresse exclusivement pour nos développements au réseau de neurone tensoriel récursif, cependant le raisonnement s'applique exactement de la même manière aux autres approches.
+
+En notant $\theta=(W,W_s,V,L)$ les paramètres du modèle (W le terme linéaire, V le tenseur, $W_s$ le paramètre du softmax et enfin $L$ le dictionnaire) on définit l'énergie suivante à partir de la distance de Kullback-Leibler (le signe moins est bien présent contrairement à la formule donnée dans l'article) :
+$$E(\theta)=-\sum_{i\in Noeuds}\sum_{j=1}^C t^i_j\log y^i_j+\lambda ||\theta||^2$$
+Pour simplifier les notations, on réservera l'index $i$ aux nœuds du réseau.
+
+\subsection{Équations de rétropropogation}
 On notera en préliminaire avec le softmax :
 $$\sigma_j(y)=\frac{e^{y_j}}{\sum_ k e^{y_k}}$$
 que la dérivée est simplement :
@@ -426,7 +609,7 @@ Pour comprendre le terme de rétropropagation, on va dériver par rapports aux p
 &=\sum_i (y^i-t^i)W_s\frac{\partial{x^i}}{\partial\theta}
 \end{align*}
 
-Pour le noeud $i$ on note $i_g$ et $i_d$ les indices des fils gauche et droite. On a donc :
+Pour le nœud $i$ on note $i_g$ et $i_d$ les indices des fils gauche et droite. On a donc :
 
 $$x^i_j=f\left( \begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}^T V^{[j]}\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix} + W_{j:}\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}\right)$$
 
@@ -451,8 +634,6 @@ Cette dernière partie rétropropagée se somme sur les $j$ pour donner un total
 \delta^{i,down}&=\sum_j \delta^{i,s}_j\delta^{i,prop}_{j:}\\
 &=\sum_j 2(\delta_j^{i,s} F(x^i_j)) V^{[j]}\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}+W^T(\delta^{i,s}\otimes F(x^i))
 \end{align*}
-
-
 
 Et on a donc les updates suivants pour calculer les $\delta^{i,comp}$ en notant $p_i$ le père du noeud $i$ qui qualifient l'algorithme de rétropropagation :
 \begin{align*}
@@ -481,6 +662,37 @@ $$\frac{\partial E^i}{\partial V^{[j]}} = \delta_j^{i,comp}\begin{bmatrix} x^{i_
 \subsubsection{Par rapport au dictionnaire L}
 Enfin pour les coefficients de L, seuls les feuilles font une contribution lorsque $x^i=L_k$, qui se lit directement :
 $$\frac{\partial E^i}{\partial L_k} = \delta^{i,comp}\delta(x^i=L_k)$$
+
+\section{Résultats expérimentaux}
+\subsection{Méthodes d'entrainement retenues}
+Dans ce travail, on a voulu considérer deux méthodes d'entrainement : AdaGrad et RMSPROP qui sont deux méthodes online de gradient stochastiques applicables sur des minibatchs qui ont pour essence de réaliser une adaptation du learning rate au cours des itérations.
+
+\subsubsection{AdaGrad}
+Défini par Duchi et al. \cite{Duchi:2011:ASM:1953048.2021068}, AdaGrad est un schéma très simple présentant des garanties sous-linéaires dans les borne d'optimisation du regret dans le cas de l'apprentissage par renforcement. Il se résume de la façon suivante : à chaque itération $t$ on calcule le gradient $g_t$, et on stocke la valeur $[a_t]_i=\sum_{t'=1}^t [g_t]_i^2$ et ce pour chacune des composantes $j$ du gradient. On réalise alors l'update suivant :
+
+$$\theta^{t+1}_j=\theta^{t}_j-\frac{\eta}{\sqrt{[a_t]_j}}[g_t]_j$$
+Le learning rate $\eta$ a alors une importance que très relative dans la mesure où il va seulement influer sur le poids dans les gradients de la première apparition d'une feature. L'idée derrière cet algorithme est de favoriser les features qui apparaissent rarement mais en étant très informatives par rapport aux features qui apparaissent très souvent sans donner beaucoup d'information. Ces dernières verront donc leur learning rate total beaucoup plus faible que pour les premières.
+
+\subsubsection{RPROP et RMSPROP}
+RPROP et RMSPROP (Resilient backpropagation et resilient mean square backpropagation) sont deux variantes d'un même algorithme consistant à considérer uniquement le signe des gradients pour effectuer la descente. Le but est d'accélérer de plus en plus l'apprentissage dans les directions qui sont constamment choisies dans le même sens par le gradient, et de ralentir lorsque celui-ci change de signe. 
+
+Plus précisément RPROP se fait par construction sur des batch complets. Après avoir parcouru le training set et évalué le gradient total $g_t$, on effectue l'update $\theta^{t+1}=\theta^t-[\bar{g}_t]_\theta$ sur les paramètres où :
+
+$$
+[\bar{g}_t]_\theta=\left\{
+\begin{array}{l}
+\eta_+[\bar{g}_{t-1}]_\theta \mbox{ Si $[\bar{g}_{t-1}]_\theta$ et $[\bar{g}_{t}]_\theta$ sont de même signe} \\
+\eta_-[\bar{g}_{t-1}]_\theta \mbox{ Sinon} 
+\end{array}
+\right.
+$$
+Où $\eta_+>1$ et $\eta_-<1$ sont des constantes. Celles-ci traduisent les taux auxquels les vitesses de progression changent.
+
+Le problème avec RPROP est qu'il ne s'applique pas à des versions mini-batch : en effet, l'utilisation du signe implique d'effectuer une opération du type $x/|x|$ sur le gradient total. Afin de réaliser la même chose en minibatch, il faut s'assurer que la constante reste la même sur tous les gradients, ce qui est impossible si celui-ci est recalculé à chaque minibatch. Ainsi, au lieu de diviser par la racine du carré pour obtenir la valeur absolue, on va plutôt conserver en mémoire une trace de la norme précédente, que l'on corrige un peu avec la nouvelle norme calculée. On a alors la variante RMSPROP en divisant par ces carrés moyens :
+$$MeanSquare(\theta,t)=(1-\alpha)MeanSquare(\theta,t-1)+\alpha [g_t]_\theta^2$$
+Avec habituellement $\alpha<0.5$ et souvent $\alpha=0.1$ (on ne souhaite pas que ce coefficient évolue trop rapidement sur le batch). On conserve la même stratégie d'update en tenant compte de ce point :
+$$\theta^{t+1}=\theta^t-[\bar{g}_t]_\theta\frac{[g_t]\theta}{MeanSquare(t,\theta)}$$
+Le terme dans la fraction étant censé donner quelque chose de l'ordre du signe du gradient (+1 ou -1 pour les coefficients donc).
 
 
 % An example of a floating figure using the graphicx package.
