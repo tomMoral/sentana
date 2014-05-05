@@ -90,6 +90,7 @@ class RNN(object):
                 X = np.append(bT.X, aT.X)
             pT.X = self.f(X)  # Mise a jour du decripteur du parent
             pT.ypred = self.y(pT.X)  # Mise a jour du label predit
+            assert (pT.ypred != 0).all()
             errorVal += -np.sum(pT.y*np.log(pT.ypred))
         #E = sum([(self.y(n.X) - n.y) for n in X_tree.nodes])
         #print E
