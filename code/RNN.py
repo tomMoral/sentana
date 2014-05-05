@@ -38,8 +38,8 @@ class RNN(object):
         self.f = lambda X: np.tanh(X.T.dot(self.V).dot(X) + self.W.dot(X))
         self.grad = lambda f: 1-f**2
 
-        self.y = lambda x: np.exp(self.Ws.dot(x).clip(-700, 700)) \
-            / sum(np.exp(self.Ws.dot(x).clip(-700, 700)))
+        self.y = lambda x: np.exp(self.Ws.dot(x).clip(-500, 700)) \
+            / sum(np.exp(self.Ws.dot(x).clip(-500, 700)))
 
     def save(self, saveFile):
         with open(saveFile, 'wb') as output:
@@ -78,6 +78,8 @@ class RNN(object):
         for n in X_tree.leaf:
             n.X = self.L[self.vocab[n.word]]  # Met a jour le mot avec le Lexicon courant
             n.ypred = self.y(n.X)  # Mise a jour du label predit
+            n.ypred += 1e-10*(n.ypred ==0)
+            assert (n.ypred != 0).all()
             errorVal += -np.sum(n.y*np.log(n.ypred))
 
         for p, [a, b] in X_tree.parcours:
@@ -90,7 +92,6 @@ class RNN(object):
                 X = np.append(bT.X, aT.X)
             pT.X = self.f(X)  # Mise a jour du decripteur du parent
             pT.ypred = self.y(pT.X)  # Mise a jour du label predit
-            assert (pT.ypred != 0).all()
             errorVal += -np.sum(pT.y*np.log(pT.ypred))
         #E = sum([(self.y(n.X) - n.y) for n in X_tree.nodes])
         #print E
