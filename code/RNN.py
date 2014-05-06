@@ -211,7 +211,7 @@ class RNN(object):
             currentMbe /= mini_batch_size
             currentMbe += sum(sum(self.Ws**2))
             currentMbe += sum(sum(self.W**2))
-            currentMbe += sum(sum(self.V**2))
+            currentMbe += sum(sum(sum(self.V**2)))
             currentMbe += sum(sum(self.L**2))
             #Division par le nombre de sample + regularisation
             dWsCurrent = dWsCurrent/mini_batch_size+self.reg*self.Ws
