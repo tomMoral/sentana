@@ -18,16 +18,17 @@ class RNN(object):
         self.dim = dim
 
         #Initiate V, the tensor operator
-        self.V = 1e-5*np.ones((dim, 2*dim, 2*dim))
+        self.V = np.random.uniform(-r,r,size=(dim, 2*dim, 2*dim))
+        self.V=(self.V+np.transpose(self.V,axes=[0,2,1]))/2
 
         #Initiate W, the linear operator
-        self.W = 1e-5*np.ones((dim, 2*dim))
+        self.W = np.random.uniform(-r,r,size=(dim, 2*dim))
 
         #Initiate Ws, the linear operator
-        self.Ws = 1e-5*np.ones((5, dim))
+        self.Ws = np.random.uniform(-r,r,size=(5, dim))
 
         #Regularisation
-        self.reg = 0.0001
+        self.reg = 0.001
 
         #Initiate L, the Lexicon representation
         self.L = np.random.uniform(-r, r, size=(len(vocab), dim))
@@ -143,7 +144,7 @@ class RNN(object):
 
         return dWs, dV, dW, dL
 
-    def train(self, X_trees, learning_rate=1.0, mini_batch_size=25,
+    def train(self, X_trees, learning_rate=0.1, mini_batch_size=25,
               warm_start=True, r=0.0001, max_iter=1000, val_set=[],
               stop_threshold=10**(-10), n_check=100, strat='AdaGrad',
               bin=False):
@@ -169,15 +170,19 @@ class RNN(object):
         gradNorm = 1.0
         if val_set != []:
             prevError = self.error(val_set)
+            prevError += self.reg*np.sum(self.Ws*self.Ws)/2.0
+            prevError += self.reg*np.sum(self.W*self.W)/2.0
+            prevError += self.reg*np.sum(self.V*self.V)/2.0
+            prevError += self.reg*np.sum(self.L*self.L)/2.0
             iniError = prevError
             errVal.append(prevError)
 
         # Normalisation pour AdaGrad/Rms-prop
         eta = learning_rate
-        dWsHist = np.ones(self.Ws.shape)
-        dVHist = np.ones(self.V.shape)
-        dWHist = np.ones(self.W.shape)
-        dLHist = np.ones(self.L.shape)
+        dWsHist = np.zeros(self.Ws.shape)
+        dVHist = np.zeros(self.V.shape)
+        dWHist = np.zeros(self.W.shape)
+        dLHist = np.zeros(self.L.shape)
 
         #Adaptative LR for RMSprop
         dWsMask = np.ones(self.Ws.shape)
@@ -209,10 +214,11 @@ class RNN(object):
                 dLCurrent += dL
 
             currentMbe /= mini_batch_size
-            currentMbe += self.reg*sum(sum(self.Ws*self.Ws))
-            currentMbe += self.reg*sum(sum(self.W*self.W))
-            currentMbe += self.reg*sum(sum(sum(self.V*self.V)))
-            currentMbe += self.reg*sum(sum(self.L*self.L))
+            currentMbe += self.reg*np.sum(self.Ws*self.Ws)/2.0
+            currentMbe += self.reg*np.sum(self.W*self.W)/2.0
+            currentMbe += self.reg*np.sum(self.V*self.V)/2.0
+            currentMbe += self.reg*np.sum(self.L*self.L)/2.0
+            
             #Division par le nombre de sample + regularisation
             dWsCurrent = dWsCurrent/mini_batch_size+self.reg*self.Ws
             dVCurrent = dVCurrent/mini_batch_size+self.reg*self.V
@@ -267,6 +273,10 @@ class RNN(object):
             #Maj de la condition d'arret
             if val_set != [] and (n_iter % n_check) == 0:
                 currentError = self.error(val_set)
+                currentError += self.reg*np.sum(self.Ws*self.Ws)/2.0
+                currentError += self.reg*np.sum(self.W*self.W)/2.0
+                currentError += self.reg*np.sum(self.V*self.V)/2.0
+                currentError += self.reg*np.sum(self.L*self.L)/2.0
                 errVal.append(currentError)
                 errMB.append(currentMbe)
                 print('Error on validation set at iter {0} : {1} '
