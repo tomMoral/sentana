@@ -207,7 +207,7 @@ class RNN(object):
         while (gradNorm > stop_threshold) and epoch < max_iter:  # Critere moins random
             epoch+=1
             np.random.shuffle(X_trees)
-            if epoch%reset_freq==0: #Remise a zero des rates cf Socher
+            if epoch%reset_freq==0 and reset_freq>0: #Remise a zero des rates cf Socher
                 dWsHist = np.zeros(self.Ws.shape)
                 dVHist = np.zeros(self.V.shape)
                 dWHist = np.zeros(self.W.shape)
