@@ -208,6 +208,10 @@ class RNN(object):
                 dLCurrent += dL
 
             currentMbe /= mini_batch_size
+            currentMbe += sum(sum(self.Ws**2))
+            currentMbe += sum(sum(self.W**2))
+            currentMbe += sum(sum(self.V**2))
+            currentMbe += sum(sum(self.L**2))
             #Division par le nombre de sample + regularisation
             dWsCurrent = dWsCurrent/mini_batch_size+self.reg*self.Ws
             dVCurrent = dVCurrent/mini_batch_size+self.reg*self.V
