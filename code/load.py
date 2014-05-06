@@ -15,6 +15,8 @@ if __name__ == '__main__':
                         help='Strategie for the learning. {AdaGrad, Rmsprop}')
     parser.add_argument('--iter', type=int, default=1000,
                         help='Nb max d\'iteration {default: 1000')
+    parser.add_argument('--bin', action='store_true',
+                        help='Perform a binary classification')
 
     args = parser.parse_args()
 
@@ -27,18 +29,6 @@ if __name__ == '__main__':
             trees.append(tree)
 
     print 'Load Sentences...'
-    #Changement pour SOStr parce que encodage merdique sur l'autre
-    '''
-    with open(path.join(DATASET, 'datasetSentences.txt')) as f:
-        f.readline()
-        sentences = []
-        lexicon = set()
-        for line in f.readlines():
-            sent = line.split('\t')[1]
-            sent = sent.replace('\n', '').split(' ')
-            sentences.append(sent)
-            lexicon = lexicon.union(sent)
-    '''
     with open(path.join(DATASET, 'SOStr.txt')) as f:
         sentences = []
         lexicon = set()
@@ -75,11 +65,11 @@ if __name__ == '__main__':
     X_trees_test = []
     for s, t, k in zip(sentences, trees, whichSet):
         if k == 1:
-            X_trees_train.append(Tree(s, t, labels))
+            X_trees_train.append(Tree(s, t, labels, binl=args.bin))
         elif k == 2:
-            X_trees_test.append(Tree(s, t, labels))
+            X_trees_test.append(Tree(s, t, labels, binl=args.bin))
         elif k == 3:
-            X_trees_dev.append(Tree(s, t, labels))
+            X_trees_dev.append(Tree(s, t, labels, binl=args.bin))
         else:
             raise(Exception('Erreur dans le parsing train/test/dev'))
     '''

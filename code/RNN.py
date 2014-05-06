@@ -78,7 +78,7 @@ class RNN(object):
         for n in X_tree.leaf:
             n.X = self.L[self.vocab[n.word]]  # Met a jour le mot avec le Lexicon courant
             n.ypred = self.y(n.X)  # Mise a jour du label predit
-            n.ypred += 1e-10*(n.ypred ==0)
+            n.ypred += 1e-300*(n.ypred == 0)
             assert (n.ypred != 0).all()
             errorVal += -np.sum(n.y*np.log(n.ypred))
 
@@ -92,6 +92,7 @@ class RNN(object):
                 X = np.append(bT.X, aT.X)
             pT.X = self.f(X)  # Mise a jour du decripteur du parent
             pT.ypred = self.y(pT.X)  # Mise a jour du label predit
+            pT.ypred += 1e-300*(pT.ypred == 0)
             errorVal += -np.sum(pT.y*np.log(pT.ypred))
         #E = sum([(self.y(n.X) - n.y) for n in X_tree.nodes])
         #print E
@@ -144,7 +145,7 @@ class RNN(object):
 
     def train(self, X_trees, learning_rate=1.0, mini_batch_size=25,
               warm_start=True, r=0.0001, max_iter=1000, val_set=[], stop_threshold=10**(-10),
-              n_check=100, strat='AdaGrad'):
+              n_check=100, strat='AdaGrad', bin=False):
         '''
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
         '''
@@ -155,7 +156,7 @@ class RNN(object):
             #Initiate W, the linear operator
             self.W = 1e-5*np.ones((dim, 2*dim))
             #Initiate Ws, the linear operator
-            self.Ws = 1e-5*np.ones((5, 2*dim))
+            self.Ws = 1e-5*np.ones((5-bin*3, 2*dim))
             #Initiate L, the Lexicon representation
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
 
