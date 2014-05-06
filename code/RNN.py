@@ -133,12 +133,12 @@ class RNN(object):
             #Propagation des erreurs vers le bas
             if aT.order < bT.order:  # Si aT est le noeud de gauche
                 X = np.append(aT.X, bT.X)
-                ddown = (self.W.T.dot(pT.d*gX)+(pT.d*gX).dot(self.V.dot(X)))
+                ddown = (self.W.T.dot(pT.d*gX)+2*(pT.d*gX).dot(self.V.dot(X)))
                 aT.d += ddown[:self.dim]
                 bT.d += ddown[self.dim:]
             else:  # aT est a droite
                 X = np.append(bT.X, aT.X)
-                ddown = (self.W.T.dot(pT.d*gX)+(pT.d*gX).dot(self.V.dot(X)))
+                ddown = (self.W.T.dot(pT.d*gX)+2*(pT.d*gX).dot(self.V.dot(X)))
                 aT.d += ddown[self.dim:]
                 bT.d += ddown[:self.dim]
             #Contribution aux gradients du pT
