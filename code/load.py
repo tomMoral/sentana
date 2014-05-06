@@ -83,7 +83,7 @@ if __name__ == '__main__':
     from RNN import RNN
     model = RNN(vocab=lexicon)
 
-    model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
+    l1,l2=model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
                 strat=args.strat, mini_batch_size=args.mb_size)
 
     model.save('../data/exp1')
