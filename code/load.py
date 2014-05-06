@@ -13,11 +13,11 @@ if __name__ == '__main__':
                                      ' over the stanfor tree bank')
     parser.add_argument('--strat', type=str, default='AdaGrad',
                         help='Strategie for the learning. {AdaGrad, Rmsprop}')
-    parser.add_argument('--iter', type=int, default=1000,
+    parser.add_argument('--iter', type=int, default=400,
                         help='Nb max d\'iteration {default: 1000')
     parser.add_argument('--bin', action='store_true',
                         help='Perform a binary classification')
-    parser.add_argument('--mb_size', type=int, default=25,
+    parser.add_argument('--mb_size', type=int, default=27,
                         help='Size of the mini-batch')
 
     args = parser.parse_args()
