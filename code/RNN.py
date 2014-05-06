@@ -18,16 +18,20 @@ class RNN(object):
         self.dim = dim
 
         #Initiate V, the tensor operator
-        self.V = 1e-5*np.ones((dim, 2*dim, 2*dim))
+        self.V = np.random.uniform(-r,r,size=(dim, 2*dim, 2*dim))
+        self.V=(self.V+np.transpose(self.V,axes=[0,2,1]))/2
 
         #Initiate W, the linear operator
-        self.W = 1e-5*np.ones((dim, 2*dim))
+        self.W = np.random.uniform(-r,r,size=(dim, 2*dim))
 
         #Initiate Ws, the linear operator
-        self.Ws = 1e-5*np.ones((5, dim))
+        self.Ws = np.random.uniform(-r,r,size=(5, dim))
 
         #Regularisation
-        self.reg = 0.0001
+        self.regV = 0.001
+        self.regW = 0.001
+        self.regWs = 0.0001
+        self.regL = 0.0001
 
         #Initiate L, the Lexicon representation
         self.L = np.random.uniform(-r, r, size=(len(vocab), dim))
@@ -47,7 +51,10 @@ class RNN(object):
             pickle.dump(self.V, output, -1)
             pickle.dump(self.W, output, -1)
             pickle.dump(self.Ws, output, -1)
-            pickle.dump(self.reg, output, -1)
+            pickle.dump(self.regV, output, -1)
+            pickle.dump(self.regW, output, -1)
+            pickle.dump(self.regWs, output, -1)
+            pickle.dump(self.regL, output, -1)
             pickle.dump(self.L, output, -1)
             pickle.dump(self.vocab, output, -1)
 
@@ -57,7 +64,10 @@ class RNN(object):
             self.V = pickle.load(input)
             self.W = pickle.load(input)
             self.Ws = pickle.load(input)
-            self.reg = pickle.load(input)
+            self.regV = pickle.load(input)
+            self.regW = pickle.load(input)
+            self.regWs = pickle.load(input)
+            self.regL = pickle.load(input)
             self.L = pickle.load(input)
             self.vocab = pickle.load(input)
 
@@ -123,12 +133,12 @@ class RNN(object):
             #Propagation des erreurs vers le bas
             if aT.order < bT.order:  # Si aT est le noeud de gauche
                 X = np.append(aT.X, bT.X)
-                ddown = (self.W.T.dot(pT.d*gX)+(pT.d*gX).dot(self.V.dot(X)))
+                ddown = (self.W.T.dot(pT.d*gX)+2*(pT.d*gX).dot(self.V.dot(X)))
                 aT.d += ddown[:self.dim]
                 bT.d += ddown[self.dim:]
             else:  # aT est a droite
                 X = np.append(bT.X, aT.X)
-                ddown = (self.W.T.dot(pT.d*gX)+(pT.d*gX).dot(self.V.dot(X)))
+                ddown = (self.W.T.dot(pT.d*gX)+2*(pT.d*gX).dot(self.V.dot(X)))
                 aT.d += ddown[self.dim:]
                 bT.d += ddown[:self.dim]
             #Contribution aux gradients du pT
@@ -143,10 +153,10 @@ class RNN(object):
 
         return dWs, dV, dW, dL
 
-    def train(self, X_trees, learning_rate=1.0, mini_batch_size=25,
-              warm_start=True, r=0.0001, max_iter=1000, val_set=[],
+    def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
+              warm_start=True, r=0.0001, max_iter=400, val_set=[],
               stop_threshold=10**(-10), n_check=100, strat='AdaGrad',
-              bin=False):
+              bin=False,reset_freq=1):
         '''
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
         '''
@@ -169,15 +179,19 @@ class RNN(object):
         gradNorm = 1.0
         if val_set != []:
             prevError = self.error(val_set)
+            prevError += self.regWs*np.sum(self.Ws*self.Ws)/2.0
+            prevError += self.regW*np.sum(self.W*self.W)/2.0
+            prevError += self.regV*np.sum(self.V*self.V)/2.0
+            prevError += self.regL*np.sum(self.L*self.L)/2.0
             iniError = prevError
             errVal.append(prevError)
 
         # Normalisation pour AdaGrad/Rms-prop
         eta = learning_rate
-        dWsHist = np.ones(self.Ws.shape)
-        dVHist = np.ones(self.V.shape)
-        dWHist = np.ones(self.W.shape)
-        dLHist = np.ones(self.L.shape)
+        dWsHist = np.zeros(self.Ws.shape)
+        dVHist = np.zeros(self.V.shape)
+        dWHist = np.zeros(self.W.shape)
+        dLHist = np.zeros(self.L.shape)
 
         #Adaptative LR for RMSprop
         dWsMask = np.ones(self.Ws.shape)
@@ -189,98 +203,113 @@ class RNN(object):
         dVPrev = np.zeros(self.V.shape)
         dWPrev = np.zeros(self.W.shape)
         dLPrev = np.zeros(self.L.shape)
-
-        while (gradNorm > stop_threshold) and n_iter < max_iter:  # Critere moins random
-            mini_batch_samples = np.random.choice(X_trees, size=mini_batch_size)
-            #Initialize gradients to 0
-            dWsCurrent = np.zeros(self.Ws.shape)
-            dVCurrent = np.zeros(self.V.shape)
-            dWCurrent = np.zeros(self.W.shape)
-            dLCurrent = np.zeros(self.L.shape)
-
-            #Mini batch pour gradient
-            currentMbe = 0.0
-            for X_tree in mini_batch_samples:
-                currentMbe += self.forward_pass(X_tree)
-                dWs, dV, dW, dL = self.backward_pass(X_tree)
-                dWsCurrent += dWs
-                dVCurrent += dV
-                dWCurrent += dW
-                dLCurrent += dL
-
-            currentMbe /= mini_batch_size
-            currentMbe += self.reg*sum(sum(self.Ws*self.Ws))
-            currentMbe += self.reg*sum(sum(self.W*self.W))
-            currentMbe += self.reg*sum(sum(sum(self.V*self.V)))
-            currentMbe += self.reg*sum(sum(self.L*self.L))
-            #Division par le nombre de sample + regularisation
-            dWsCurrent = dWsCurrent/mini_batch_size+self.reg*self.Ws
-            dVCurrent = dVCurrent/mini_batch_size+self.reg*self.V
-            dWCurrent = dWCurrent/mini_batch_size+self.reg*self.W
-            dLCurrent = dLCurrent/mini_batch_size+self.reg*self.L
-
-            #Mise a jour des poids et calcul des pas
-            if strat == 'AdaGrad':
-                dWsHist += dWsCurrent*dWsCurrent
-                dVHist += dVCurrent*dVCurrent
-                dWHist += dWCurrent*dWCurrent
-                dLHist += dLCurrent*dLCurrent
-
-                dWsCurrent = eta*dWsCurrent/np.sqrt(dWsHist)
-                dWCurrent = eta*dWCurrent/np.sqrt(dWHist)
-                dVCurrent = eta*dVCurrent/np.sqrt(dVHist)
-                dLCurrent = eta*dLCurrent/np.sqrt(dLHist)
-            else:
-                dWsHist = 0.9*dWsHist + 0.1*dWsCurrent*dWsCurrent
-                dVHist = 0.9*dVHist + 0.1*dVCurrent*dVCurrent
-                dWHist = 0.9*dWHist + 0.1*dWCurrent*dWCurrent
-                dLHist = 0.9*dLHist + 0.1*dLCurrent*dLCurrent
-
-                dWsMask *= .7*(dWsPrev*dWsCurrent >= 0) + .5
-                dWMask *= .7*(dWPrev*dWCurrent >= 0) + .5
-                dVMask *= .7*(dVPrev*dVCurrent >= 0) + .5
-                dLMask *= .7*(dLPrev*dLCurrent >= 0) + .5
-
-                dWsCurrent = eta*dWsMask.clip(1e-6, 50, out=dWsMask)*dWsCurrent/np.sqrt(dWsHist)
-                dWCurrent = eta*dWMask.clip(1e-6, 50, out=dWMask)*dWCurrent/np.sqrt(dWHist)
-                dVCurrent = eta*dVMask.clip(1e-6, 20, out=dVMask)*dVCurrent/np.sqrt(dVHist)
-                dLCurrent = eta*dLMask.clip(1e-6, 20, out=dLMask)*dLCurrent/np.sqrt(dLHist)
-
-            #Calcul de la norme du gradient (critere d'arret)
-            gradNorm = np.sum(np.abs(dWsCurrent))
-            gradNorm += np.sum(np.abs(dWCurrent))
-            gradNorm += np.sum(np.abs(dVCurrent))
-            gradNorm += np.sum(np.abs(dLCurrent))
-
-            #Keep previous gradient
-            dWsPrev = dWsCurrent
-            dWPrev = dWCurrent
-            dVPrev = dVCurrent
-            dLPrev = dLCurrent
-
-            #Descente
-            self.Ws -= dWsCurrent
-            self.W -= dWCurrent
-            self.V -= dVCurrent
-            self.L -= dLCurrent
-
-            #Maj de la condition d'arret
-            if val_set != [] and (n_iter % n_check) == 0:
-                currentError = self.error(val_set)
-                errVal.append(currentError)
-                errMB.append(currentMbe)
-                print('Error on validation set at iter {0} : {1} '
-                      '(previous : {2})'.format(n_iter, currentError, prevError))
-                print('Error on mini batch at iter {0} : {1} '
-                      '(Gradient norm : {2})'.format(n_iter, currentMbe, gradNorm))
-                prevError = currentError
-            else:
-                print('Error on mini batch at iter {0} : {1} '
-                      '(Gradient norm : {2})'.format(n_iter, currentMbe, gradNorm))
-                errMB.append(currentMbe)
-
-            #Maj iter
-            n_iter += 1
+        epoch=0
+        while (gradNorm > stop_threshold) and epoch < max_iter:  # Critere moins random
+            epoch+=1
+            np.random.shuffle(X_trees)
+            if epoch%reset_freq==0 and reset_freq>0: #Remise a zero des rates cf Socher
+                dWsHist = np.zeros(self.Ws.shape)
+                dVHist = np.zeros(self.V.shape)
+                dWHist = np.zeros(self.W.shape)
+                dLHist = np.zeros(self.L.shape)                
+            for mb in range(len(X_trees)/(mini_batch_size)+1):
+                mini_batch_samples=X_trees[mb*mini_batch_size:(mb+1)*mini_batch_size]
+                #mini_batch_samples = np.random.choice(X_trees, size=mini_batch_size)
+                #Initialize gradients to 0
+                dWsCurrent = np.zeros(self.Ws.shape)
+                dVCurrent = np.zeros(self.V.shape)
+                dWCurrent = np.zeros(self.W.shape)
+                dLCurrent = np.zeros(self.L.shape)
+    
+                #Mini batch pour gradient
+                currentMbe = 0.0
+                for X_tree in mini_batch_samples:
+                    currentMbe += self.forward_pass(X_tree)
+                    dWs, dV, dW, dL = self.backward_pass(X_tree)
+                    dWsCurrent += dWs
+                    dVCurrent += dV
+                    dWCurrent += dW
+                    dLCurrent += dL
+    
+                currentMbe /= mini_batch_size
+                currentMbe += self.regWs*np.sum(self.Ws*self.Ws)/2.0
+                currentMbe += self.regW*np.sum(self.W*self.W)/2.0
+                currentMbe += self.regV*np.sum(self.V*self.V)/2.0
+                currentMbe += self.regL*np.sum(self.L*self.L)/2.0
+                
+                #Division par le nombre de sample + regularisation
+                dWsCurrent = dWsCurrent/mini_batch_size+self.regWs*self.Ws
+                dVCurrent = dVCurrent/mini_batch_size+self.regV*self.V
+                dWCurrent = dWCurrent/mini_batch_size+self.regW*self.W
+                dLCurrent = dLCurrent/mini_batch_size+self.regL*self.L
+    
+                #Mise a jour des poids et calcul des pas
+                if strat == 'AdaGrad':
+                    eps=0.001 #Adagrad >0 ? cf Socher
+                    dWsHist += dWsCurrent*dWsCurrent
+                    dVHist += dVCurrent*dVCurrent
+                    dWHist += dWCurrent*dWCurrent
+                    dLHist += dLCurrent*dLCurrent
+    
+                    dWsCurrent = eta*dWsCurrent/np.sqrt(dWsHist+eps)
+                    dWCurrent = eta*dWCurrent/np.sqrt(dWHist+eps)
+                    dVCurrent = eta*dVCurrent/np.sqrt(dVHist+eps)
+                    dLCurrent = eta*dLCurrent/np.sqrt(dLHist+eps)
+                else:
+                    dWsHist = 0.9*dWsHist + 0.1*dWsCurrent*dWsCurrent
+                    dVHist = 0.9*dVHist + 0.1*dVCurrent*dVCurrent
+                    dWHist = 0.9*dWHist + 0.1*dWCurrent*dWCurrent
+                    dLHist = 0.9*dLHist + 0.1*dLCurrent*dLCurrent
+    
+                    dWsMask *= .7*(dWsPrev*dWsCurrent >= 0) + .5
+                    dWMask *= .7*(dWPrev*dWCurrent >= 0) + .5
+                    dVMask *= .7*(dVPrev*dVCurrent >= 0) + .5
+                    dLMask *= .7*(dLPrev*dLCurrent >= 0) + .5
+    
+                    dWsCurrent = eta*dWsMask.clip(1e-6, 50, out=dWsMask)*dWsCurrent/np.sqrt(dWsHist)
+                    dWCurrent = eta*dWMask.clip(1e-6, 50, out=dWMask)*dWCurrent/np.sqrt(dWHist)
+                    dVCurrent = eta*dVMask.clip(1e-6, 20, out=dVMask)*dVCurrent/np.sqrt(dVHist)
+                    dLCurrent = eta*dLMask.clip(1e-6, 20, out=dLMask)*dLCurrent/np.sqrt(dLHist)
+    
+                #Calcul de la norme du gradient (critere d'arret)
+                gradNorm = np.sum(np.abs(dWsCurrent))
+                gradNorm += np.sum(np.abs(dWCurrent))
+                gradNorm += np.sum(np.abs(dVCurrent))
+                gradNorm += np.sum(np.abs(dLCurrent))
+    
+                #Keep previous gradient
+                dWsPrev = dWsCurrent
+                dWPrev = dWCurrent
+                dVPrev = dVCurrent
+                dLPrev = dLCurrent
+    
+                #Descente
+                self.Ws -= dWsCurrent
+                self.W -= dWCurrent
+                self.V -= dVCurrent
+                self.L -= dLCurrent
+    
+                #Maj de la condition d'arret
+                if val_set != [] and (n_iter % n_check) == 0:
+                    currentError = self.error(val_set)
+                    currentError += self.regWs*np.sum(self.Ws*self.Ws)/2.0
+                    currentError += self.regW*np.sum(self.W*self.W)/2.0
+                    currentError += self.regV*np.sum(self.V*self.V)/2.0
+                    currentError += self.regL*np.sum(self.L*self.L)/2.0
+                    errVal.append(currentError)
+                    errMB.append(currentMbe)
+                    print('Error on validation set at epoch {0},iter {3} : {1} '
+                          '(previous : {2})'.format(epoch, currentError, prevError,n_iter))
+                    print('Error on mini batch at epoch {0}, iter {3} : {1} '
+                          '(Gradient norm : {2})'.format(epoch, currentMbe, gradNorm,n_iter))
+                    prevError = currentError
+                else:
+                    print('Error on mini batch at epoch {0}, iter {3} : {1} '
+                          '(Gradient norm : {2})'.format(epoch, currentMbe, gradNorm,n_iter))
+                    errMB.append(currentMbe)
+    
+                #Maj iter
+                n_iter += 1
 
         if val_set != []:
             print('Error on training set before and after training'
@@ -339,3 +368,25 @@ class RNN(object):
             countRoot += 1
             scRoot += ((V.dot(n.y) > .5) - (V.dot(n.ypred) > .5)) ** 2
         return scRoot/countRoot
+        
+    def check_derivative(self,X_tree,eps=1e-6):
+        '''
+        Fait une compaaison dérivee / differences finies
+        '''
+        error1=self.forward_pass(X_tree)
+        dWs, dV, dW, dL = self.backward_pass(X_tree)
+        dirW=np.random.uniform(size=self.W.shape)
+        dirWs=np.random.uniform(size=self.Ws.shape)
+        dirL=np.random.uniform(size=self.L.shape)
+        dirV=np.random.uniform(size=self.V.shape)
+        
+        self.Ws+=eps*dirWs
+        self.W+=eps*dirW
+        self.L+=eps*dirL
+        self.V+=eps*dirV
+        
+        error2=self.forward_pass(X_tree)
+        diff=(error2-error1)/eps
+        diff2=np.sum(dW*dirW)+np.sum(dWs*dirWs)+np.sum(dL*dirL)+np.sum(dV*dirV)
+        
+        return np.abs(diff-diff2)

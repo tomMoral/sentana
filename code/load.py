@@ -13,12 +13,14 @@ if __name__ == '__main__':
                                      ' over the stanfor tree bank')
     parser.add_argument('--strat', type=str, default='AdaGrad',
                         help='Strategie for the learning. {AdaGrad, Rmsprop}')
-    parser.add_argument('--iter', type=int, default=1000,
-                        help='Nb max d\'iteration {default: 1000')
+    parser.add_argument('--iter', type=int, default=400,
+                        help='Nb max d\'iteration {default: 400')
     parser.add_argument('--bin', action='store_true',
                         help='Perform a binary classification')
-    parser.add_argument('--mb_size', type=int, default=25,
+    parser.add_argument('--mb_size', type=int, default=27,
                         help='Size of the mini-batch')
+    parser.add_argument('--reset_freq', type=int, default=-1,
+                        help='Frequence of reset for adagrad')
 
     args = parser.parse_args()
 
@@ -82,9 +84,9 @@ if __name__ == '__main__':
     '''
     from RNN import RNN
     model = RNN(vocab=lexicon)
-
-    errMB, errVal = model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
-                                strat=args.strat, mini_batch_size=args.mb_size)
+    l1, l2 = model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
+                         strat=args.strat, mini_batch_size=args.mb_size,
+                         reset_freq=args.reset_freq)
 
     model.save('../data/exp1')
 

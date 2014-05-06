@@ -631,8 +631,8 @@ $$\delta_{j,:}^{i,prop}=F(x_j^i) \left( 2\begin{bmatrix} x^{i_g} \\ x^{i_d} \end
 
 Cette dernière partie rétropropagée se somme sur les $j$ pour donner un total :
 \begin{align*}
-\delta^{i,down}&=\sum_j \delta^{i,s}_j\delta^{i,prop}_{j:}\\
-&=\sum_j 2(\delta_j^{i,s} F(x^i_j)) V^{[j]}\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}+W^T(\delta^{i,s}\otimes F(x^i))
+\delta^{i,down}&=\sum_j \delta^{i,comp}_j\delta^{i,prop}_{j:}\\
+&=\sum_j 2(\delta_j^{i,comp} F(x^i_j)) V^{[j]}\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}+W^T(\delta^{i,comp}\otimes F(x^i))
 \end{align*}
 
 Et on a donc les updates suivants pour calculer les $\delta^{i,comp}$ en notant $p_i$ le père du noeud $i$ qui qualifient l'algorithme de rétropropagation :
@@ -643,7 +643,7 @@ Et on a donc les updates suivants pour calculer les $\delta^{i,comp}$ en notant 
 
 Reste donc à calculer les différentes parties propres pour chaque paramètre.
 
-\subsubsection{Par rapport au biais W}
+\subsubsection{Par rapport à W}
 La partie propre de la dérivée par rapport à $W_{kl}$ s'écrit :
 $$\frac{\partial W_{j:}}{\partial W_{kl}}\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}=\delta_{kj}\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}_l$$
 
