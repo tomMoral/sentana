@@ -144,8 +144,9 @@ class RNN(object):
         return dWs, dV, dW, dL
 
     def train(self, X_trees, learning_rate=1.0, mini_batch_size=25,
-              warm_start=True, r=0.0001, max_iter=1000, val_set=[], stop_threshold=10**(-10),
-              n_check=100, strat='AdaGrad', bin=False):
+              warm_start=True, r=0.0001, max_iter=1000, val_set=[],
+              stop_threshold=10**(-10), n_check=100, strat='AdaGrad',
+              bin=False):
         '''
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
         '''

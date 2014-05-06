@@ -17,6 +17,8 @@ if __name__ == '__main__':
                         help='Nb max d\'iteration {default: 1000')
     parser.add_argument('--bin', action='store_true',
                         help='Perform a binary classification')
+    parser.add_argument('--mb_size', type=int, default=25,
+                        help='Size of the mini-batch')
 
     args = parser.parse_args()
 
@@ -82,7 +84,7 @@ if __name__ == '__main__':
     model = RNN(vocab=lexicon)
 
     model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
-                strat=args.strat)
+                strat=args.strat, mini_batch_size=args.mb_size)
 
     model.save('../data/exp1')
 
