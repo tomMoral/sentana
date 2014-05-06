@@ -51,7 +51,10 @@ class RNN(object):
             pickle.dump(self.V, output, -1)
             pickle.dump(self.W, output, -1)
             pickle.dump(self.Ws, output, -1)
-            pickle.dump(self.reg, output, -1)
+            pickle.dump(self.regV, output, -1)
+            pickle.dump(self.regW, output, -1)
+            pickle.dump(self.regWs, output, -1)
+            pickle.dump(self.regL, output, -1)
             pickle.dump(self.L, output, -1)
             pickle.dump(self.vocab, output, -1)
 
@@ -61,7 +64,10 @@ class RNN(object):
             self.V = pickle.load(input)
             self.W = pickle.load(input)
             self.Ws = pickle.load(input)
-            self.reg = pickle.load(input)
+            self.regV = pickle.load(input)
+            self.regW = pickle.load(input)
+            self.regWs = pickle.load(input)
+            self.regL = pickle.load(input)
             self.L = pickle.load(input)
             self.vocab = pickle.load(input)
 
@@ -362,3 +368,25 @@ class RNN(object):
             countRoot += 1
             scRoot += ((V.dot(n.y) > .5) - (V.dot(n.ypred) > .5)) ** 2
         return scRoot/countRoot
+        
+    def check_derivative(self,X_tree,eps=1e-6):
+        '''
+        Fait une compaaison dérivee / differences finies
+        '''
+        error1=self.forward_pass(X_tree)
+        dWs, dV, dW, dL = self.backward_pass(X_tree)
+        dirW=np.random.uniform(size=self.W.shape)
+        dirWs=np.random.uniform(size=self.Ws.shape)
+        dirL=np.random.uniform(size=self.L.shape)
+        dirV=np.random.uniform(size=self.V.shape)
+        
+        self.Ws+=eps*dirWs
+        self.W+=eps*dirW
+        self.L+=eps*dirL
+        self.V+=eps*dirV
+        
+        error2=self.forward_pass(X_tree)
+        diff=(error2-error1)/eps
+        diff2=np.sum(dW*dirW)+np.sum(dWs*dirWs)+np.sum(dL*dirL)+np.sum(dV*dirV)
+        
+        return np.abs(diff-diff2)
