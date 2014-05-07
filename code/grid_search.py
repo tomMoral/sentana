@@ -13,6 +13,8 @@ if __name__ == '__main__':
                         help='For the regularisation parameter')
     parser.add_argument('--lr', action='store_true',
                         help='For the learning rate')
+    parser.add_argument('--mb', action='store_true',
+                        help='For the mini batch size')
     args = parser.parse_args()
 
     print 'Load Trees...'
