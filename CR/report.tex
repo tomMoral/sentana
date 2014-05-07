@@ -733,9 +733,25 @@ Pour le choix des hyperparamètres, du fait du temps nécessaire à l'entraineme
 \item La taille des mini-batchs à chaque itération.
 \end{itemize}
 
-Pour cette raison on effectue une recherche des paramètres optimaux sur de grilles de puissances de 10 (du fait du temps nécessaire à l'entrainement). La procédure d'entrainement étant très approchée, il est d'autant moins crucial de choisir des paramètres optimaux avec une grande précision, mais un ordre de grandeur correct est tout à fait suffisant.
+Pour cette raison on effectue une recherche des paramètres optimaux sur de grilles de puissances de 10 (du fait du temps nécessaire à l'entrainement). La procédure d'entrainement étant très approchée, il est d'autant moins crucial de choisir des paramètres optimaux avec une grande précision, mais un ordre de grandeur correct est tout à fait suffisant. On reporte les courbe en figure \ref{hyper}, et pour la suite on garde les choix "optimaux".
 
 %Insérer les courbes de training ici.
+\begin{figure}[h]
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/reg.png}
+\caption{Courbe validation error pour paramètre régularisation (log10)}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/lr.png}
+\caption{Courbe validation error pour learning rate (log10)}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/mb.png}
+\caption{Courbe validation error pour taille du minibatch}
+\end{subfigure}
+\caption{Courbes représentant les erreur sur l'ensemble de validation en fonction des itérations pour différents choix d'hyperparamètres}
+\label{hyper}
+\end{figure}
 
 \subsubsection{Early stopping}
 En emploie une méthode dite $UP_s$ issue de \cite{Prechelt97earlystopping} (Livre "Neural network : a Trick of Trade"). L'idée est de regarder le nombre d'itérations consécutives au cours desquelles l'erreur sur l'ensemble de validation augmente. Cela se résume simplement ainsi \emph{$UP_s$ : si l'erreur de validation augmente sur $s$ itérations consécutives, alors on arrête l'algorithme.}
@@ -800,6 +816,7 @@ On effectue une PCA sur la matrice obtenue pour la représentation des mots en f
 \begin{figure}
 \includegraphics[width=\columnwidth]{fig/WordPlot.png}
 \caption{Représentation 2D des vecteur des mots. Les couleurs représentent le sentiment associé couleurs déduite par chaleur du sentiment}
+\label{wordPCA}
 \end{figure}
 
 On constate que le modèle a très clairement permis de séparer les clusters les un des autres, et par conséquent les mots ayant des sentiments associés proches sont dans la même partie de l'espace. On constate également sur le graphique que il est difficile de différencier les sentiments extrêmes au milieu des autres, ce qui explique les performances observées plus haut.
