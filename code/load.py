@@ -22,6 +22,9 @@ if __name__ == '__main__':
     parser.add_argument('--reset_freq', type=int, default=-1,
                         help='Frequence of reset for adagrad')
 
+    parser.add_argument('--save_tmp',type=str, default='tmp.pkl',
+                        help='Tmp file save')
+
     args = parser.parse_args()
 
     print 'Load Trees...'
@@ -86,7 +89,7 @@ if __name__ == '__main__':
     model = RNN(vocab=lexicon)
     l1, l2 = model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
                          strat=args.strat, mini_batch_size=args.mb_size,
-                         reset_freq=args.reset_freq)
+                         reset_freq=args.reset_freq,save_tmp=args.save_tmp)
 
     model.save('../data/exp1')
 
