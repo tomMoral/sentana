@@ -173,15 +173,21 @@ class RNN(object):
         #Remise à zero du modele
         if not warm_start:
             dim = self.dim
-            self.V = 1e-5*np.ones((dim, 2*dim, 2*dim))
+            #Initiate V, the tensor operator
+            self.V = np.random.uniform(-r, r, size=(dim, 2*dim, 2*dim))
+            self.V = (self.V+np.transpose(self.V, axes=[0, 2, 1]))/2
+    
             #Initiate W, the linear operator
-            self.W = 1e-5*np.ones((dim, 2*dim))
+            self.W = np.random.uniform(-r, r, size=(dim, 2*dim))
+    
             #Initiate Ws, the linear operator
-            self.Ws = 1e-5*np.ones((5-bin*3, 2*dim))
+            self.Ws = np.random.uniform(-r, r, size=(5, dim))
+    
+            #Un biais ca coute pas cher...
+            self.B = np.random.uniform(-r, r, size=(dim))
+    
             #Initiate L, the Lexicon representation
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
-
-            self.B = np.random.uniform(-r, r, size=(dim))
 
         #Liste pour erreurs
         errMB = []
@@ -361,7 +367,7 @@ class RNN(object):
         if val_set != []:
             print('Error on training set before and after training'
                   '({2} iter) : {0}->{1}\n'.format(iniError, currentError, n_iter))
-            print('Generalization error : '.format(glError))
+            print('Generalization error : {0}'.format(glError))
         return errMB, errVal
 
     def score_fine(self, X_trees):
