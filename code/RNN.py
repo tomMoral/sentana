@@ -438,3 +438,15 @@ class RNN(object):
         diff2 = np.sum(dW*dirW)+np.sum(dWs*dirWs)+np.sum(dL*dirL)+np.sum(dV*dirV)
 
         return np.abs(diff-diff2)
+
+        def confusion_matrix(self, X_trees):
+            conf = np.zeros((5, 5))
+            compt = 0.
+            for tree in X_trees:
+                for n in tree.nodes:
+                    lp = np.argmax(n.ypred)
+                    l = np.argmax(n.y)
+                    conf[lp, l] += 1
+                    compt += 1
+            conf /= conf/compt
+            return conf
