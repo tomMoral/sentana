@@ -671,7 +671,22 @@ Dans ce travail, on a voulu considérer deux méthodes d'entrainement : AdaGrad 
 Défini par Duchi et al. \cite{Duchi:2011:ASM:1953048.2021068}, AdaGrad est un schéma très simple présentant des garanties sous-linéaires dans les borne d'optimisation du regret dans le cas de l'apprentissage par renforcement. Il se résume de la façon suivante : à chaque itération $t$ on calcule le gradient $g_t$, et on stocke la valeur $[a_t]_i=\sum_{t'=1}^t [g_t]_i^2$ et ce pour chacune des composantes $j$ du gradient. On réalise alors l'update suivant :
 
 $$\theta^{t+1}_j=\theta^{t}_j-\frac{\eta}{\sqrt{[a_t]_j}}[g_t]_j$$
-Le learning rate $\eta$ a alors une importance que très relative dans la mesure où il va seulement influer sur le poids dans les gradients de la première apparition d'une feature. L'idée derrière cet algorithme est de favoriser les features qui apparaissent rarement mais en étant très informatives par rapport aux features qui apparaissent très souvent sans donner beaucoup d'information. Ces dernières verront donc leur learning rate total beaucoup plus faible que pour les premières.
+Le learning rate $\eta$ a alors une importance que très relative dans la mesure où il va seulement influer sur le poids dans les gradients de la première apparition d'une feature. L'idée derrière cet algorithme est de favoriser les features qui apparaissent rarement mais en étant très informatives par rapport aux features qui apparaissent très souvent sans donner beaucoup d'information. Ces dernières verront donc leur learning rate total beaucoup plus faible que pour les premières. On représente sur les courbes en figure \ref{AdaErreur} la progression de l'erreur avec les itérations.
+
+\begin{figure}[h]
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CourbeMbeAdaGrad.png}
+\caption{Erreur sur les mini-batch en fonction des itérations}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CourbeValAdaGrad.png}
+\caption{Erreur sur le set de validation avec les itérations}
+\end{subfigure}
+\caption{Erreurs en fonction des itérations pour AdaGrad}
+\label{AdaErreur}
+\end{figure}
+
+On note sur les courbes (qui sont uniquement des entrainements partiels) que les performance d'AdaGrad sont meilleurs que RPROP et la descente est beaucoup plus rapide à des valeurs intéressantes. C'est donc le mécanisme d'entrainement retenu.
 
 \subsubsection{RPROP et RMSPROP}
 RPROP et RMSPROP (Resilient backpropagation et resilient mean square backpropagation) sont deux variantes d'un même algorithme consistant à considérer uniquement le signe des gradients pour effectuer la descente. Le but est d'accélérer de plus en plus l'apprentissage dans les directions qui sont constamment choisies dans le même sens par le gradient, et de ralentir lorsque celui-ci change de signe. 
@@ -693,10 +708,71 @@ $$MeanSquare(\theta,t)=(1-\alpha)MeanSquare(\theta,t-1)+\alpha [g_t]_\theta^2$$
 Avec habituellement $\alpha<0.5$ et souvent $\alpha=0.1$ (on ne souhaite pas que ce coefficient évolue trop rapidement sur le batch). On conserve la même stratégie d'update en tenant compte de ce point :
 $$\theta^{t+1}=\theta^t-[\bar{g}_t]_\theta\frac{[g_t]\theta}{MeanSquare(t,\theta)}$$
 Le terme dans la fraction étant censé donner quelque chose de l'ordre du signe du gradient (+1 ou -1 pour les coefficients donc).
+Cependant cette technique ne s'est pas montrée extrêmement efficace à l'usage, et a plutôt oscillé entre de mauvaises solutions comme le montre les graphes de la figure \ref{RpropErreur}. Le comportement est représenté sur un millier d'itérations, mais le résultat est le même en allant plus loin on reste sur un plateau en oscillant. La courbe d'erreur avec les mini-batch est erratique du fait du gradient stochastique.
+
+\begin{figure}[h]
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/courbeMbeRprop.png}
+\caption{Erreur sur les mini-batch en fonction des itérations}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CourbeValRprop.png}
+\caption{Erreur sur le set de validation avec les itérations}
+\end{subfigure}
+\caption{Erreurs en fonction des itérations}
+\label{RpropErreur}
+\end{figure}
+
+\subsubsection{Choix des hyperparamètres}
+Pour le choix des hyperparamètres, du fait du temps nécessaire à l'entrainement complet d'un réseau de neurones (plusieurs heures avec notre code), nous sommes obligés de fixer un nombre d'itération volontairement trop faible pour obtenir un résultat optimal de l'ordre du millier, puis nous comparons les performances obtenues sur l'ensemble de train et de validation pour juger de la qualité des hyperparamètres utilisés. Pour notre modèle, les hyperparamètres sont : 
+
+\begin{itemize}
+\item $\lambda$ pour la régularisation $L^2$.
+\item $\eta$ le learning rate de l'AdaGrad.
+\item La taille des mini-batchs à chaque itération.
+\end{itemize}
+
+Pour cette raison on effectue une recherche des paramètres optimaux sur de grilles de puissances de 10 (du fait du temps nécessaire à l'entrainement). La procédure d'entrainement étant très approchée, il est d'autant moins crucial de choisir des paramètres optimaux avec une grande précision, mais un ordre de grandeur correct est tout à fait suffisant.
 
 \subsubsection{Early stopping}
-En emploie une méthode dite $GL_2$ issue de \cite{Prechelt97earlystopping} (Livre "Neural network : a Trick of Trade").
+En emploie une méthode dite $UP_s$ issue de \cite{Prechelt97earlystopping} (Livre "Neural network : a Trick of Trade"). L'idée est de regarder le nombre d'itérations consécutives au cours desquelles l'erreur sur l'ensemble de validation augmente. Cela se résume simplement ainsi \emph{$UP_s$ : si l'erreur de validation augmente sur $s$ itérations consécutives, alors on arrête l'algorithme.}
 
+Le choix de cette méthode a été fait en comparant avec l'erreur de généralisation dite $GL_2$ pour laquelle on arrête l'algorithme lorsque l'erreur de généralisation excède un seuil $\alpha$ donné :
+$$GL_\alpha\mbox{ : stop lorsque $100(E_{val}(t)/E_{opt}(t)-1)>\alpha$}$$
+
+Ce dernier critère conduisait cependant à des arrêts beaucoup trop rapides puisque la courbe d'entrainement d'un réseau de neurones est beaucoup moins lisses que celles d'autre techniques.
+
+Nous avons donc choisi un critère d'arrêt $UP_s$ à $s=3$ et une vérification toutes les 100 itérations (le calcul de l'erreur sur l'ensemble de validation rend l'itération beaucoup plus longue que sur un mini-batch, on doit donc le faire seulement à un certain intervalle pour rester rapides).
+
+\subsection{Résultats}
+Nous utilisons le même split entre train/validation/test que Richard Socher afin d'être certain de comparer les bons chiffres. Un entrainement complet prend entre 3 et 6 heures.
+
+\subsubsection{Problème à 5 classes}
+Nous ne sommes à ce jour pas parvenus à reproduire les résultats de l'article de Socher. Le calcul des gradients a été vérifié à de multiple reprise, que ce soit le calcul théorique ou le calcul numérique (comparaison par différences finies). Les valeurs des hyper-paramètres sont dans les range indiqués, la technique d'entrainement est la même, l'architecture du réseau également, et enfin les ensembles train/validation/set sont aussi les mêmes. Pourtant nous sommes toujours en deçà des performances mentionnées dans l'article, et sommes toujours en train d'essayer d'améliorer les résultats. Nous reportons les chiffres suivants à l'heure actuelle :
+
+\centering
+\begin{tabular}{|c|c|c|}
+\hline
+& Tous nœuds & Racines\\ \hline
+Résultat & 0.78 & 0.35 \\ \hline
+\end{tabular}
+
+Avec la matrice de confusion suivante :
+\centering
+\begin{tabular}{|c|c|c|c|c|c|}
+\hline
+/& Très négatif & Négatif & Neutre & Positif & Très positif \\ \hline
+Très négatif & & & & & \\ \hline
+Négatif & & & & & \\ \hline
+Neutre & & & & & \\ \hline
+Positif & & & & & \\ \hline
+Très positif & & & & & \\ \hline
+\end{tabular}
+
+\subsubsection{Exemple de phrases}
+
+
+\section{Conclusion}
 % An example of a floating figure using the graphicx package.
 % Note that \label must occur AFTER (or within) \caption.
 % For figures, \caption should occur after the \includegraphics.
