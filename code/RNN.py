@@ -166,7 +166,7 @@ class RNN(object):
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
               warm_start=True, r=0.0001, max_iter=1000, val_set=[],
               n_check=100, strat='AdaGrad',
-              bin=False,reset_freq=-1,save_tmp='tmp.pkl'):
+              bin=False,reset_freq=-1,save_tmp='tmp.pkl',n_stop=4):
         '''
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
         '''
@@ -199,6 +199,7 @@ class RNN(object):
             iniError = prevError
             minError = prevError #optimal error so far
             glError = 0
+            upStop = 0
             errVal.append(prevError)
 
         # Normalisation pour AdaGrad/Rms-prop
@@ -335,7 +336,7 @@ class RNN(object):
                       '(previous : {2})'.format(n_iter, currentError, prevError))
                 print('Error on mini batch at iter {0} : {1} '
                       '(Gradient norm : {2})'.format(n_iter, currentMbe, gradNorm))
-                prevError = currentError
+                
                 with open(save_tmp, 'wb') as output:
                     pickle.dump(errVal, output, -1)
                     pickle.dump(errMB, output, -1)
@@ -343,18 +344,24 @@ class RNN(object):
                 #Early stopping
                 minError = min(minError,currentError)
                 glError = 100*((currentError/minError)-1.0)
-                early_stop=(glError>2) #GL2 criterion
+                if currentError>prevError:
+                    upStop+=1
+                else:
+                    upStop=0
+                early_stop=(upStop>=n_stop) and (n_stop>0) #UP criterion
+                prevError = currentError
             else:
                 print('Error on mini batch at iter {0} : {1} '
                       '(Gradient norm : {2})'.format(n_iter,currentMbe, gradNorm))
                 errMB.append(currentMbe)
-
+                
             #Maj iter
             n_iter += 1
 
         if val_set != []:
             print('Error on training set before and after training'
                   '({2} iter) : {0}->{1}\n'.format(iniError, currentError, n_iter))
+            print('Generalization error : '.format(glError))
         return errMB, errVal
 
     def score_fine(self, X_trees):
