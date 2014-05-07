@@ -14,28 +14,28 @@ class RNN(object):
     -------
 
     """
-    def __init__(self, vocab={}, dim=30, r=0.0001):
+    def __init__(self, vocab={}, dim=30, r=0.0001, reg=1):
         self.dim = dim
 
         #Initiate V, the tensor operator
-        self.V = np.random.uniform(-r,r,size=(dim, 2*dim, 2*dim))
-        self.V=(self.V+np.transpose(self.V,axes=[0,2,1]))/2
+        self.V = np.random.uniform(-r, r, size=(dim, 2*dim, 2*dim))
+        self.V = (self.V+np.transpose(self.V, axes=[0, 2, 1]))/2
 
         #Initiate W, the linear operator
-        self.W = np.random.uniform(-r,r,size=(dim, 2*dim))
+        self.W = np.random.uniform(-r, r, size=(dim, 2*dim))
 
         #Initiate Ws, the linear operator
-        self.Ws = np.random.uniform(-r,r,size=(5, dim))
-        
+        self.Ws = np.random.uniform(-r, r, size=(5, dim))
+
         #Un biais ca coute pas cher...
-        self.B = np.random.uniform(-r,r,size=(dim))
+        self.B = np.random.uniform(-r, r, size=(dim))
 
         #Regularisation
-        self.regV = 0.001
-        self.regW = 0.001
-        self.regWs = 0.0001
-        self.regL = 0.0001
-        self.regB = 0.001
+        self.regV = reg*0.001
+        self.regW = reg*0.001
+        self.regWs = reg*0.0001
+        self.regL = reg*0.0001
+        self.regB = reg*0.001
 
         #Initiate L, the Lexicon representation
         self.L = np.random.uniform(-r, r, size=(len(vocab), dim))
@@ -166,7 +166,7 @@ class RNN(object):
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
               warm_start=True, r=0.0001, max_iter=1000, val_set=[],
               n_check=100, strat='AdaGrad',
-              bin=False,reset_freq=-1,save_tmp='tmp.pkl',n_stop=4):
+              bin=False, reset_freq=-1, save_tmp='tmp.pkl', n_stop=4):
         '''
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
         '''
@@ -180,8 +180,8 @@ class RNN(object):
             self.Ws = 1e-5*np.ones((5-bin*3, 2*dim))
             #Initiate L, the Lexicon representation
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
-            
-            self.B = np.random.uniform(-r,r,size=(dim))
+
+            self.B = np.random.uniform(-r, r, size=(dim))
 
         #Liste pour erreurs
         errMB = []
@@ -197,7 +197,7 @@ class RNN(object):
             prevError += self.regL*np.sum(self.L*self.L)/2.0
             prevError += self.regB*np.sum(self.B*self.B)/2.0
             iniError = prevError
-            minError = prevError #optimal error so far
+            minError = prevError  # optimal error so far
             glError = 0
             upStop = 0
             errVal.append(prevError)
@@ -221,20 +221,20 @@ class RNN(object):
         dVPrev = np.zeros(self.V.shape)
         dWPrev = np.zeros(self.W.shape)
         dLPrev = np.zeros(self.L.shape)
-        dBPrev = np.zeros(self.B.shape)        
-        
-        early_stop=False
+        dBPrev = np.zeros(self.B.shape)
+
+        early_stop = False
         while (not early_stop) and n_iter < max_iter:  # Critere moins random
-            if n_iter%reset_freq==0 and reset_freq>0: #Remise a zero des rates cf Socher
+            if n_iter % reset_freq == 0 and reset_freq > 0:  # Remise a zero des rates cf Socher
                 dWsHist = np.zeros(self.Ws.shape)
                 dVHist = np.zeros(self.V.shape)
                 dWHist = np.zeros(self.W.shape)
                 dLHist = np.zeros(self.L.shape)
                 dBHist = np.zeros(self.B.shape)
-                
-            #Choose mini batch randomly                
+
+            #Choose mini batch randomly
             mini_batch_samples = np.random.choice(X_trees, size=mini_batch_size)
-            
+
             #Initialize gradients to 0
             dWsCurrent = np.zeros(self.Ws.shape)
             dVCurrent = np.zeros(self.V.shape)
@@ -251,7 +251,7 @@ class RNN(object):
                 dVCurrent += dV
                 dWCurrent += dW
                 dLCurrent += dL
-                dBCurrent += dB                
+                dBCurrent += dB
 
             currentMbe /= mini_batch_size
             currentMbe += self.regWs*np.sum(self.Ws*self.Ws)/2.0
@@ -259,7 +259,7 @@ class RNN(object):
             currentMbe += self.regV*np.sum(self.V*self.V)/2.0
             currentMbe += self.regL*np.sum(self.L*self.L)/2.0
             currentMbe += self.regB*np.sum(self.B*self.B)/2.0
-            
+
             #Division par le nombre de sample + regularisation
             dWsCurrent = dWsCurrent/mini_batch_size+self.regWs*self.Ws
             dVCurrent = dVCurrent/mini_batch_size+self.regV*self.V
@@ -269,7 +269,7 @@ class RNN(object):
 
             #Mise a jour des poids et calcul des pas
             if strat == 'AdaGrad':
-                eps=0.001 #Adagrad >0 ? cf Socher
+                eps = 0.001  # Adagrad >0 ? cf Socher
                 dWsHist += dWsCurrent*dWsCurrent
                 dVHist += dVCurrent*dVCurrent
                 dWHist += dWCurrent*dWCurrent
@@ -282,7 +282,7 @@ class RNN(object):
                 dLCurrent = eta*dLCurrent/np.sqrt(dLHist+eps)
                 dBCurrent = eta*dBCurrent/np.sqrt(dBHist+eps)
             else:
-                eps=0.001
+                eps = 0.001
                 dWsHist = 0.9*dWsHist + 0.1*dWsCurrent*dWsCurrent
                 dVHist = 0.9*dVHist + 0.1*dVCurrent*dVCurrent
                 dWHist = 0.9*dWHist + 0.1*dWCurrent*dWCurrent
@@ -329,32 +329,32 @@ class RNN(object):
                 currentError += self.regV*np.sum(self.V*self.V)/2.0
                 currentError += self.regL*np.sum(self.L*self.L)/2.0
                 currentError += self.regB*np.sum(self.B*self.B)/2.0
-                
+
                 errVal.append(currentError)
                 errMB.append(currentMbe)
                 print('Error on validation set at iter {0} : {1} '
                       '(previous : {2})'.format(n_iter, currentError, prevError))
                 print('Error on mini batch at iter {0} : {1} '
                       '(Gradient norm : {2})'.format(n_iter, currentMbe, gradNorm))
-                
+
                 with open(save_tmp, 'wb') as output:
                     pickle.dump(errVal, output, -1)
                     pickle.dump(errMB, output, -1)
-                
+
                 #Early stopping
-                minError = min(minError,currentError)
+                minError = min(minError, currentError)
                 glError = 100*((currentError/minError)-1.0)
-                if currentError>prevError:
-                    upStop+=1
+                if currentError > prevError:
+                    upStop += 1
                 else:
-                    upStop=0
-                early_stop=(upStop>=n_stop) and (n_stop>0) #UP criterion
+                    upStop = 0
+                early_stop = (upStop >= n_stop) and (n_stop > 0)  # UP criterion
                 prevError = currentError
             else:
                 print('Error on mini batch at iter {0} : {1} '
-                      '(Gradient norm : {2})'.format(n_iter,currentMbe, gradNorm))
+                      '(Gradient norm : {2})'.format(n_iter, currentMbe, gradNorm))
                 errMB.append(currentMbe)
-                
+
             #Maj iter
             n_iter += 1
 
@@ -416,26 +416,25 @@ class RNN(object):
             countRoot += 1
             scRoot += ((V.dot(n.y) > .5) - (V.dot(n.ypred) > .5)) ** 2
         return scRoot/countRoot
-        
-    def check_derivative(self,X_tree,eps=1e-6):
+
+    def check_derivative(self, X_tree, eps=1e-6):
         '''
         Fait une compaaison dérivee / differences finies
         '''
-        error1=self.forward_pass(X_tree)
+        error1 = self.forward_pass(X_tree)
         dWs, dV, dW, dL = self.backward_pass(X_tree)
-        dirW=np.random.uniform(size=self.W.shape)
-        dirWs=np.random.uniform(size=self.Ws.shape)
-        dirL=np.random.uniform(size=self.L.shape)
-        dirV=np.random.uniform(size=self.V.shape)
-        
-        self.Ws+=eps*dirWs
-        self.W+=eps*dirW
-        self.L+=eps*dirL
-        self.V+=eps*dirV
-    
-        
-        error2=self.forward_pass(X_tree)
-        diff=(error2-error1)/eps
-        diff2=np.sum(dW*dirW)+np.sum(dWs*dirWs)+np.sum(dL*dirL)+np.sum(dV*dirV)
-        
+        dirW = np.random.uniform(size=self.W.shape)
+        dirWs = np.random.uniform(size=self.Ws.shape)
+        dirL = np.random.uniform(size=self.L.shape)
+        dirV = np.random.uniform(size=self.V.shape)
+
+        self.Ws += eps*dirWs
+        self.W += eps*dirW
+        self.L += eps*dirL
+        self.V += eps*dirV
+
+        error2 = self.forward_pass(X_tree)
+        diff = (error2-error1)/eps
+        diff2 = np.sum(dW*dirW)+np.sum(dWs*dirWs)+np.sum(dL*dirL)+np.sum(dV*dirV)
+
         return np.abs(diff-diff2)

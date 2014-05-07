@@ -20,11 +20,15 @@ if __name__ == '__main__':
     parser.add_argument('--mb_size', type=int, default=27,
                         help='Size of the mini-batch')
     parser.add_argument('--reset_freq', type=int, default=-1,
-                        help='Frequence of reset for adagrad')    
+                        help='Frequence of reset for adagrad')
     parser.add_argument('--n_stop', type=int, default=4,
                         help='Threshold for eraly stopping -1 to avoid ES')
+    parser.add_argument('--reg', type=float, default=1,
+                        help='Regularisation factor scaling')
+    parser.add_argument('--lr', type=float, default=0.01,
+                        help='Learning rate')
 
-    parser.add_argument('--save_tmp',type=str, default='tmp.pkl',
+    parser.add_argument('--save_tmp', type=str, default='tmp.pkl',
                         help='Tmp file save')
 
     args = parser.parse_args()
@@ -88,11 +92,11 @@ if __name__ == '__main__':
         vocab[w] = i
     '''
     from RNN import RNN
-    model = RNN(vocab=lexicon)
+    model = RNN(vocab=lexicon, reg=args.reg)
     l1, l2 = model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
                          strat=args.strat, mini_batch_size=args.mb_size,
-                         reset_freq=args.reset_freq,save_tmp=args.save_tmp,
-                         n_stop=args.n_stop)
+                         reset_freq=args.reset_freq, save_tmp=args.save_tmp,
+                         n_stop=args.n_stop, learning_rate=args.lr)
 
     model.save('../data/exp1')
 
