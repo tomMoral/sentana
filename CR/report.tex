@@ -581,6 +581,7 @@ Dorénavant on s'intéresse exclusivement pour nos développements au réseau de
 En notant $\theta=(W,W_s,V,L)$ les paramètres du modèle (W le terme linéaire, V le tenseur, $W_s$ le paramètre du softmax et enfin $L$ le dictionnaire) on définit l'énergie suivante à partir de la distance de Kullback-Leibler (le signe moins est bien présent contrairement à la formule donnée dans l'article) :
 $$E(\theta)=-\sum_{i\in Noeuds}\sum_{j=1}^C t^i_j\log y^i_j+\lambda ||\theta||^2$$
 Pour simplifier les notations, on réservera l'index $i$ aux nœuds du réseau.
+On peut faire la remarque suivante : le critère d'entrainement est à priori assez mauvais dans la mesure où il va pénaliser exactement de la même manière un label réel très positif qui sera classifié négatif que si il était classifié seulement positif. Le critère ne prend pas du tout en compte la topologie des labels. Dans ce sens il y a une grosse possibilité d'amélioration du modèle.
 
 \subsection{Équations de rétropropogation}
 On notera en préliminaire avec le softmax :
@@ -671,7 +672,22 @@ Dans ce travail, on a voulu considérer deux méthodes d'entrainement : AdaGrad 
 Défini par Duchi et al. \cite{Duchi:2011:ASM:1953048.2021068}, AdaGrad est un schéma très simple présentant des garanties sous-linéaires dans les borne d'optimisation du regret dans le cas de l'apprentissage par renforcement. Il se résume de la façon suivante : à chaque itération $t$ on calcule le gradient $g_t$, et on stocke la valeur $[a_t]_i=\sum_{t'=1}^t [g_t]_i^2$ et ce pour chacune des composantes $j$ du gradient. On réalise alors l'update suivant :
 
 $$\theta^{t+1}_j=\theta^{t}_j-\frac{\eta}{\sqrt{[a_t]_j}}[g_t]_j$$
-Le learning rate $\eta$ a alors une importance que très relative dans la mesure où il va seulement influer sur le poids dans les gradients de la première apparition d'une feature. L'idée derrière cet algorithme est de favoriser les features qui apparaissent rarement mais en étant très informatives par rapport aux features qui apparaissent très souvent sans donner beaucoup d'information. Ces dernières verront donc leur learning rate total beaucoup plus faible que pour les premières.
+Le learning rate $\eta$ a alors une importance que très relative dans la mesure où il va seulement influer sur le poids dans les gradients de la première apparition d'une feature. L'idée derrière cet algorithme est de favoriser les features qui apparaissent rarement mais en étant très informatives par rapport aux features qui apparaissent très souvent sans donner beaucoup d'information. Ces dernières verront donc leur learning rate total beaucoup plus faible que pour les premières. On représente sur les courbes en figure \ref{AdaErreur} la progression de l'erreur avec les itérations.
+
+\begin{figure}[h]
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CourbeMbeAdaGrad.png}
+\caption{Erreur sur les mini-batch en fonction des itérations}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CourbeValAdaGrad.png}
+\caption{Erreur sur le set de validation avec les itérations}
+\end{subfigure}
+\caption{Erreurs en fonction des itérations pour AdaGrad}
+\label{AdaErreur}
+\end{figure}
+
+On note sur les courbes (qui sont uniquement des entrainements partiels) que les performance d'AdaGrad sont meilleurs que RPROP et la descente est beaucoup plus rapide à des valeurs intéressantes. C'est donc le mécanisme d'entrainement retenu.
 
 \subsubsection{RPROP et RMSPROP}
 RPROP et RMSPROP (Resilient backpropagation et resilient mean square backpropagation) sont deux variantes d'un même algorithme consistant à considérer uniquement le signe des gradients pour effectuer la descente. Le but est d'accélérer de plus en plus l'apprentissage dans les directions qui sont constamment choisies dans le même sens par le gradient, et de ralentir lorsque celui-ci change de signe. 
@@ -693,10 +709,108 @@ $$MeanSquare(\theta,t)=(1-\alpha)MeanSquare(\theta,t-1)+\alpha [g_t]_\theta^2$$
 Avec habituellement $\alpha<0.5$ et souvent $\alpha=0.1$ (on ne souhaite pas que ce coefficient évolue trop rapidement sur le batch). On conserve la même stratégie d'update en tenant compte de ce point :
 $$\theta^{t+1}=\theta^t-[\bar{g}_t]_\theta\frac{[g_t]\theta}{MeanSquare(t,\theta)}$$
 Le terme dans la fraction étant censé donner quelque chose de l'ordre du signe du gradient (+1 ou -1 pour les coefficients donc).
+Cependant cette technique ne s'est pas montrée extrêmement efficace à l'usage, et a plutôt oscillé entre de mauvaises solutions comme le montre les graphes de la figure \ref{RpropErreur}. Le comportement est représenté sur un millier d'itérations, mais le résultat est le même en allant plus loin on reste sur un plateau en oscillant. La courbe d'erreur avec les mini-batch est erratique du fait du gradient stochastique.
+
+\begin{figure}[h]
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/courbeMbeRprop.png}
+\caption{Erreur sur les mini-batch en fonction des itérations}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CourbeValRprop.png}
+\caption{Erreur sur le set de validation avec les itérations}
+\end{subfigure}
+\caption{Erreurs en fonction des itérations}
+\label{RpropErreur}
+\end{figure}
+
+\subsubsection{Choix des hyperparamètres}
+Pour le choix des hyperparamètres, du fait du temps nécessaire à l'entrainement complet d'un réseau de neurones (plusieurs heures avec notre code), nous sommes obligés de fixer un nombre d'itération volontairement trop faible pour obtenir un résultat optimal de l'ordre du millier, puis nous comparons les performances obtenues sur l'ensemble de train et de validation pour juger de la qualité des hyperparamètres utilisés. Pour notre modèle, les hyperparamètres sont : 
+
+\begin{itemize}
+\item $\lambda$ pour la régularisation $L^2$.
+\item $\eta$ le learning rate de l'AdaGrad.
+\item La taille des mini-batchs à chaque itération.
+\end{itemize}
+
+Pour cette raison on effectue une recherche des paramètres optimaux sur de grilles de puissances de 10 (du fait du temps nécessaire à l'entrainement). La procédure d'entrainement étant très approchée, il est d'autant moins crucial de choisir des paramètres optimaux avec une grande précision, mais un ordre de grandeur correct est tout à fait suffisant.
+
+%Insérer les courbes de training ici.
 
 \subsubsection{Early stopping}
-En emploie une méthode dite $GL_2$ issue de \cite{Prechelt97earlystopping} (Livre "Neural network : a Trick of Trade").
+En emploie une méthode dite $UP_s$ issue de \cite{Prechelt97earlystopping} (Livre "Neural network : a Trick of Trade"). L'idée est de regarder le nombre d'itérations consécutives au cours desquelles l'erreur sur l'ensemble de validation augmente. Cela se résume simplement ainsi \emph{$UP_s$ : si l'erreur de validation augmente sur $s$ itérations consécutives, alors on arrête l'algorithme.}
 
+Le choix de cette méthode a été fait en comparant avec l'erreur de généralisation dite $GL_2$ pour laquelle on arrête l'algorithme lorsque l'erreur de généralisation excède un seuil $\alpha$ donné :
+$$GL_\alpha\mbox{ : stop lorsque $100(E_{val}(t)/E_{opt}(t)-1)>\alpha$}$$
+
+Ce dernier critère conduisait cependant à des arrêts beaucoup trop rapides puisque la courbe d'entrainement d'un réseau de neurones est beaucoup moins lisses que celles d'autre techniques.
+
+Nous avons donc choisi un critère d'arrêt $UP_s$ à $s=3$ et une vérification toutes les 100 itérations (le calcul de l'erreur sur l'ensemble de validation rend l'itération beaucoup plus longue que sur un mini-batch, on doit donc le faire seulement à un certain intervalle pour rester rapides).
+
+\subsection{Résultats}
+Nous utilisons le même split entre train/validation/test que Richard Socher afin d'être certain de comparer les bons chiffres. Un entrainement complet prend entre 3 et 6 heures avec AdaGrad. Les profils d'entrainement sont ceux en figure \ref{FinErreur} où on voit que l'early stopping a eu lieu juste avant le début de l'overfitting.
+
+\begin{figure}[h]
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/AdaGradLastTrainMbe.png}
+\caption{Erreur sur les mini-batch en fonction des itérations}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/AdaGradLastTrainVal.png}
+\caption{Erreur sur le set de validation avec les itérations}
+\end{subfigure}
+\caption{Erreurs en fonction des itérations avec AdaGrad}
+\label{FinErreur}
+\end{figure}
+
+\subsubsection{Problème à 5 classes}
+Nous ne sommes à ce jour pas parvenus à reproduire les résultats de l'article de Socher. Le calcul des gradients a été vérifié à de multiple reprise, que ce soit le calcul théorique ou le calcul numérique (comparaison par différences finies). Les valeurs des hyper-paramètres sont dans les ranges indiqués, la technique d'entrainement est la même, l'architecture du réseau également, et enfin les ensembles train/validation/set sont aussi les mêmes. Pourtant nous sommes toujours en deçà des performances mentionnées dans l'article, et sommes toujours en train d'essayer d'améliorer les résultats. Nous reportons les chiffres suivants à l'heure actuelle :
+
+\begin{center}
+\begin{tabular}{|c|c|c|}
+\hline
+& Tous nœuds & Racines\\ \hline
+Résultat 5 classes & 77.83 & 38.28  \\ \hline
+Résultat binaire & 66.76 & 66.28 \\ \hline
+\end{tabular}
+\end{center}
+
+Avec les matrices de confusions pour tous les noeuds mais aussi pour les racines (CM) en figure \ref{CM1}.
+
+\begin{figure}[h]
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CMLastTrainRoot.png}
+\caption{Racines}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CMLastTrain.png}
+\caption{Nœuds}
+\end{subfigure}
+\caption{Matrice de confusions noeuds et racine. Les labels sont ordonnées du plus négatif au plus positif.}
+\label{CM1}
+\end{figure}
+
+Les commentaires à faire sont les suivants : d'une part on constate que malgré le fait que le modèle ne prennent pas du tout en compte la topologie des labels, on arrive cependant à obtenir une classification plutôt correcte en binaire contre toute attente. On constate également que la classification est plus difficile pour les sentiments les plus extrêmes.
+
+
+
+\subsubsection{PCA sur la matrice des mots}
+On effectue une PCA sur la matrice obtenue pour la représentation des mots en figure \ref{wordPCA}.
+
+\begin{figure}
+\includegraphics[width=\columnwidth]{fig/WordPlot.png}
+\caption{Représentation 2D des vecteur des mots. Les couleurs représentent le sentiment associé couleurs déduite par chaleur du sentiment}
+\end{figure}
+
+On constate que le modèle a très clairement permis de séparer les clusters les un des autres, et par conséquent les mots ayant des sentiments associés proches sont dans la même partie de l'espace. On constate également sur le graphique que il est difficile de différencier les sentiments extrêmes au milieu des autres, ce qui explique les performances observées plus haut.
+
+
+\section{Conclusion}
+Comme cela a déjà été mentionné plus haut, les réseaux de neurones sont un outil extrêmement puissant mais qui demande beaucoup de temps et d'expertise pour être entrainés correctement. Cependant une fois cette phase réussie, ils obtiennent la plupart des temps des résultats à l'état de l'art, en particulier ici sur la classification de sentiments. Ils permettent de formaliser mathématiquement des intuitions simples, et surtout la structure interne du langages.
+
+Le modèle présenté ici représente un très bon compromis dans une catégorie des réseaux qu'il est extrêmement difficile en général d'entrainer , à savoir les réseaux de neurones récursifs. Il allie un modèle simple à un mécanisme de backpropagation efficace du fait de la contrainte forte à partager les mêmes paramètres sur toute la structure. Cependant comme pour toute les méthodes du premier ordre, on est gêné par les courbures pathologiques de la fonction de cout utilisée comme critère, ceci combiné au grand nombre de paramètres à entrainer simultanément.
+
+En revanche, on pourra grandement contester ici le choix qui a été fait de la fonction de coût dans la mesure où on oublie la topologie sur les labels qui est pourtant tout à fait crucial, et un nouveau modèle prenant cet aspect des choses en comptes est à notre avis susceptible de battre le score établi par celui-ci, et notamment en transformant le modèle en un modèle de classification binaire, et non pas en le redéfinissant depuis le départ. En ayant plus d'informations à la base, on devrait parvenir à obtenir un meilleur résultat.
 % An example of a floating figure using the graphicx package.
 % Note that \label must occur AFTER (or within) \caption.
 % For figures, \caption should occur after the \includegraphics.

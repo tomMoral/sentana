@@ -173,15 +173,21 @@ class RNN(object):
         #Remise à zero du modele
         if not warm_start:
             dim = self.dim
-            self.V = 1e-5*np.ones((dim, 2*dim, 2*dim))
+            #Initiate V, the tensor operator
+            self.V = np.random.uniform(-r, r, size=(dim, 2*dim, 2*dim))
+            self.V = (self.V+np.transpose(self.V, axes=[0, 2, 1]))/2
+    
             #Initiate W, the linear operator
-            self.W = 1e-5*np.ones((dim, 2*dim))
+            self.W = np.random.uniform(-r, r, size=(dim, 2*dim))
+    
             #Initiate Ws, the linear operator
-            self.Ws = 1e-5*np.ones((5-bin*3, 2*dim))
+            self.Ws = np.random.uniform(-r, r, size=(5, dim))
+    
+            #Un biais ca coute pas cher...
+            self.B = np.random.uniform(-r, r, size=(dim))
+    
             #Initiate L, the Lexicon representation
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
-
-            self.B = np.random.uniform(-r, r, size=(dim))
 
         #Liste pour erreurs
         errMB = []
@@ -361,7 +367,7 @@ class RNN(object):
         if val_set != []:
             print('Error on training set before and after training'
                   '({2} iter) : {0}->{1}\n'.format(iniError, currentError, n_iter))
-            print('Generalization error : '.format(glError))
+            print('Generalization error : {0}'.format(glError))
         return errMB, errVal
 
     def score_fine(self, X_trees):
@@ -438,3 +444,43 @@ class RNN(object):
         diff2 = np.sum(dW*dirW)+np.sum(dWs*dirWs)+np.sum(dL*dirL)+np.sum(dV*dirV)
 
         return np.abs(diff-diff2)
+
+    def confusion_matrix(self, X_trees):
+        confAll = np.zeros((5, 5))
+        confRoot = np.zeros((5, 5))
+        for tree in X_trees:
+            for n in tree.nodes:
+                lp = np.argmax(n.ypred)
+                l = np.argmax(n.y)
+                confAll[l,lp] += 1
+            lp = np.argmax(tree.nodes[-1].ypred)
+            l = np.argmax(tree.nodes[-1].y)
+            confRoot[l,lp]+=1
+        for lp in range(5):
+            confAll[lp,:]/=np.sum(confAll[lp,:])
+            confRoot[lp,:]/=np.sum(confRoot[lp,:])
+        return confAll,confRoot
+
+    def plot_words_2D(self,labels):
+        from sklearn.decomposition import PCA
+        import matplotlib.pyplot as plt
+        import matplotlib.cm as cm
+        pca=PCA(n_components=2)
+        X=pca.fit_transform(self.L)
+        revert_vocab={i:(w,labels[w]) for (w,i) in self.vocab.iteritems()}
+        y=np.zeros(self.L.shape[0])
+        for i in range(self.L.shape[0]):
+            _,y[i]=revert_vocab[i]
+            l=y[i]
+            if l <= 0.2:
+                y[i] = 1
+            elif 0.2 < l <= 0.4:
+                y[i] = 2
+            elif 0.4 < l <= 0.6:
+                y[i] = 3
+            elif 0.6 < l <= 0.8:
+                y[i] = 4
+            else:
+                y[i] = 5
+        plt.scatter(X[:,0],X[:,1],c=y,cmap=cm.jet)
+        
