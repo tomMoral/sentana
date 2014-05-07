@@ -581,6 +581,7 @@ Dorénavant on s'intéresse exclusivement pour nos développements au réseau de
 En notant $\theta=(W,W_s,V,L)$ les paramètres du modèle (W le terme linéaire, V le tenseur, $W_s$ le paramètre du softmax et enfin $L$ le dictionnaire) on définit l'énergie suivante à partir de la distance de Kullback-Leibler (le signe moins est bien présent contrairement à la formule donnée dans l'article) :
 $$E(\theta)=-\sum_{i\in Noeuds}\sum_{j=1}^C t^i_j\log y^i_j+\lambda ||\theta||^2$$
 Pour simplifier les notations, on réservera l'index $i$ aux nœuds du réseau.
+On peut faire la remarque suivante : le critère d'entrainement est à priori assez mauvais dans la mesure où il va pénaliser exactement de la même manière un label réel très positif qui sera classifié négatif que si il était classifié seulement positif. Le critère ne prend pas du tout en compte la topologie des labels. Dans ce sens il y a une grosse possibilité d'amélioration du modèle.
 
 \subsection{Équations de rétropropogation}
 On notera en préliminaire avec le softmax :
@@ -745,34 +746,61 @@ Ce dernier critère conduisait cependant à des arrêts beaucoup trop rapides pu
 Nous avons donc choisi un critère d'arrêt $UP_s$ à $s=3$ et une vérification toutes les 100 itérations (le calcul de l'erreur sur l'ensemble de validation rend l'itération beaucoup plus longue que sur un mini-batch, on doit donc le faire seulement à un certain intervalle pour rester rapides).
 
 \subsection{Résultats}
-Nous utilisons le même split entre train/validation/test que Richard Socher afin d'être certain de comparer les bons chiffres. Un entrainement complet prend entre 3 et 6 heures.
+Nous utilisons le même split entre train/validation/test que Richard Socher afin d'être certain de comparer les bons chiffres. Un entrainement complet prend entre 3 et 6 heures avec AdaGrad. Les profils d'entrainement sont ceux en figure \ref{FinErreur} où on voit que l'early stopping a eu lieu juste avant le début de l'overfitting.
+
+\begin{figure}[h]
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/AdaGradLastTrainMbe.png}
+\caption{Erreur sur les mini-batch en fonction des itérations}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/AdaGradLastTrainVal.png}
+\caption{Erreur sur le set de validation avec les itérations}
+\end{subfigure}
+\caption{Erreurs en fonction des itérations avec AdaGrad}
+\label{FinErreur}
+\end{figure}
 
 \subsubsection{Problème à 5 classes}
 Nous ne sommes à ce jour pas parvenus à reproduire les résultats de l'article de Socher. Le calcul des gradients a été vérifié à de multiple reprise, que ce soit le calcul théorique ou le calcul numérique (comparaison par différences finies). Les valeurs des hyper-paramètres sont dans les range indiqués, la technique d'entrainement est la même, l'architecture du réseau également, et enfin les ensembles train/validation/set sont aussi les mêmes. Pourtant nous sommes toujours en deçà des performances mentionnées dans l'article, et sommes toujours en train d'essayer d'améliorer les résultats. Nous reportons les chiffres suivants à l'heure actuelle :
 
-\centering
+\begin{center}
 \begin{tabular}{|c|c|c|}
 \hline
 & Tous nœuds & Racines\\ \hline
-Résultat & 0.78 & 0.35 \\ \hline
+Résultat 5 classes & 77.83 & 38.28  \\ \hline
+Résultat binaire & 66.76 & 66.28 \\ \hline
 \end{tabular}
+\end{center}
 
-Avec la matrice de confusion suivante :
-\centering
-\begin{tabular}{|c|c|c|c|c|c|}
-\hline
-/& Très négatif & Négatif & Neutre & Positif & Très positif \\ \hline
-Très négatif & & & & & \\ \hline
-Négatif & & & & & \\ \hline
-Neutre & & & & & \\ \hline
-Positif & & & & & \\ \hline
-Très positif & & & & & \\ \hline
-\end{tabular}
+Avec les matrices de confusions pour tous les noeuds mais aussi pour les racines (CM) en figure \ref{CM1}.
 
-\subsubsection{Exemple de phrases}
+\begin{figure}[h]
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CMLastTrainRoot.png}
+\caption{Racines}
+\end{subfigure}
+\begin{subfigure}{0.48\columnwidth}
+\includegraphics[width=\textwidth]{fig/CMLastTrain.png}
+\caption{Nœuds}
+\end{subfigure}
+\caption{Matrice de confusions noeuds et racine. Les labels sont ordonnées du plus négatif au plus positif.}
+\label{CM1}
+\end{figure}
+
+Les commentaires à faire sont les suivants : d'une part on constate que malgré le fait que le modèle ne prennent pas du tout en compte la topologie des labels, on arrive cependant à obtenir une classification plutôt correcte en binaire contre toute attente. On constate également que la classification est plus difficile pour les sentiments les plus extrêmes.
+
+
+
+\subsubsection{Exemples de phrases}
 
 
 \section{Conclusion}
+Comme cela a déjà été mentionné plus haut, les réseaux de neurones sont un outil extrêmement puissant mais qui demande beaucoup de temps et d'expertise pour être entrainés correctement. Cependant une fois cette phase réussie, ils obtiennent la plupart des temps des résultats à l'état de l'art, en particulier ici sur la classification de sentiments. Ils permettent de formaliser mathématiquement des intuitions simples, et surtout la structure interne du langages.
+
+Le modèle présenté ici représente un très bon compromis dans une catégorie des réseaux qu'il est extrêmement difficile en général d'entrainer , à savoir les réseaux de neurones récursifs. Il allie un modèle simple à un mécanisme de backpropagation efficace du fait de la contrainte forte à partager les mêmes paramètres sur toute la structure. Cependant comme pour toute les méthodes du premier ordre, on est gêné par les courbures pathologiques de la fonction de cout utilisée comme critère, ceci combiné au grand nombre de paramètres à entrainer simultanément.
+
+En revanche, on pourra grandement contester ici le choix qui a été fait de la fonction de coût dans la mesure où on oublie la topologie sur les labels qui est pourtant tout à fait crucial, et un nouveau modèle prenant cet aspect des choses en comptes est à notre avis susceptible de battre le score établi par celui-ci, et notamment en transformant le modèle en un modèle de classification binaire, et non pas en le redéfinissant depuis le départ. En ayant plus d'informations à la base, on devrait parvenir à obtenir un meilleur résultat.
 % An example of a floating figure using the graphicx package.
 % Note that \label must occur AFTER (or within) \caption.
 % For figures, \caption should occur after the \includegraphics.

@@ -445,14 +445,18 @@ class RNN(object):
 
         return np.abs(diff-diff2)
 
-        def confusion_matrix(self, X_trees):
-            conf = np.zeros((5, 5))
-            compt = 0.
-            for tree in X_trees:
-                for n in tree.nodes:
-                    lp = np.argmax(n.ypred)
-                    l = np.argmax(n.y)
-                    conf[lp, l] += 1
-                    compt += 1
-            conf /= conf/compt
-            return conf
+    def confusion_matrix(self, X_trees):
+        confAll = np.zeros((5, 5))
+        confRoot = np.zeros((5, 5))
+        for tree in X_trees:
+            for n in tree.nodes:
+                lp = np.argmax(n.ypred)
+                l = np.argmax(n.y)
+                confAll[l,lp] += 1
+            lp = np.argmax(tree.nodes[-1].ypred)
+            l = np.argmax(tree.nodes[-1].y)
+            confRoot[l,lp]+=1
+        for lp in range(5):
+            confAll[lp,:]/=np.sum(confAll[lp,:])
+            confRoot[lp,:]/=np.sum(confRoot[lp,:])
+        return confAll,confRoot
