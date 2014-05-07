@@ -460,3 +460,27 @@ class RNN(object):
             confAll[lp,:]/=np.sum(confAll[lp,:])
             confRoot[lp,:]/=np.sum(confRoot[lp,:])
         return confAll,confRoot
+
+    def plot_words_2D(self,labels):
+        from sklearn.decomposition import PCA
+        import matplotlib.pyplot as plt
+        import matplotlib.cm as cm
+        pca=PCA(n_components=2)
+        X=pca.fit_transform(self.L)
+        revert_vocab={i:(w,labels[w]) for (w,i) in self.vocab.iteritems()}
+        y=np.zeros(self.L.shape[0])
+        for i in range(self.L.shape[0]):
+            _,y[i]=revert_vocab[i]
+            l=y[i]
+            if l <= 0.2:
+                y[i] = 1
+            elif 0.2 < l <= 0.4:
+                y[i] = 2
+            elif 0.4 < l <= 0.6:
+                y[i] = 3
+            elif 0.6 < l <= 0.8:
+                y[i] = 4
+            else:
+                y[i] = 5
+        plt.scatter(X[:,0],X[:,1],c=y,cmap=cm.jet)
+        

@@ -735,6 +735,8 @@ Pour le choix des hyperparamètres, du fait du temps nécessaire à l'entraineme
 
 Pour cette raison on effectue une recherche des paramètres optimaux sur de grilles de puissances de 10 (du fait du temps nécessaire à l'entrainement). La procédure d'entrainement étant très approchée, il est d'autant moins crucial de choisir des paramètres optimaux avec une grande précision, mais un ordre de grandeur correct est tout à fait suffisant.
 
+%Insérer les courbes de training ici.
+
 \subsubsection{Early stopping}
 En emploie une méthode dite $UP_s$ issue de \cite{Prechelt97earlystopping} (Livre "Neural network : a Trick of Trade"). L'idée est de regarder le nombre d'itérations consécutives au cours desquelles l'erreur sur l'ensemble de validation augmente. Cela se résume simplement ainsi \emph{$UP_s$ : si l'erreur de validation augmente sur $s$ itérations consécutives, alors on arrête l'algorithme.}
 
@@ -762,7 +764,7 @@ Nous utilisons le même split entre train/validation/test que Richard Socher afi
 \end{figure}
 
 \subsubsection{Problème à 5 classes}
-Nous ne sommes à ce jour pas parvenus à reproduire les résultats de l'article de Socher. Le calcul des gradients a été vérifié à de multiple reprise, que ce soit le calcul théorique ou le calcul numérique (comparaison par différences finies). Les valeurs des hyper-paramètres sont dans les range indiqués, la technique d'entrainement est la même, l'architecture du réseau également, et enfin les ensembles train/validation/set sont aussi les mêmes. Pourtant nous sommes toujours en deçà des performances mentionnées dans l'article, et sommes toujours en train d'essayer d'améliorer les résultats. Nous reportons les chiffres suivants à l'heure actuelle :
+Nous ne sommes à ce jour pas parvenus à reproduire les résultats de l'article de Socher. Le calcul des gradients a été vérifié à de multiple reprise, que ce soit le calcul théorique ou le calcul numérique (comparaison par différences finies). Les valeurs des hyper-paramètres sont dans les ranges indiqués, la technique d'entrainement est la même, l'architecture du réseau également, et enfin les ensembles train/validation/set sont aussi les mêmes. Pourtant nous sommes toujours en deçà des performances mentionnées dans l'article, et sommes toujours en train d'essayer d'améliorer les résultats. Nous reportons les chiffres suivants à l'heure actuelle :
 
 \begin{center}
 \begin{tabular}{|c|c|c|}
@@ -792,7 +794,15 @@ Les commentaires à faire sont les suivants : d'une part on constate que malgré
 
 
 
-\subsubsection{Exemples de phrases}
+\subsubsection{PCA sur la matrice des mots}
+On effectue une PCA sur la matrice obtenue pour la représentation des mots en figure \ref{wordPCA}.
+
+\begin{figure}
+\includegraphics[width=\columnwidth]{fig/WordPlot.png}
+\caption{Représentation 2D des vecteur des mots. Les couleurs représentent le sentiment associé couleurs déduite par chaleur du sentiment}
+\end{figure}
+
+On constate que le modèle a très clairement permis de séparer les clusters les un des autres, et par conséquent les mots ayant des sentiments associés proches sont dans la même partie de l'espace. On constate également sur le graphique que il est difficile de différencier les sentiments extrêmes au milieu des autres, ce qui explique les performances observées plus haut.
 
 
 \section{Conclusion}
