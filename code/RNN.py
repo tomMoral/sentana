@@ -1,6 +1,7 @@
 # -*- coding: utf8 -*-
 import numpy as np
 import pickle
+import Tree
 
 
 class RNN(object):
@@ -25,17 +26,13 @@ class RNN(object):
         self.W = np.random.uniform(-r, r, size=(dim, 2*dim))
 
         #Initiate Ws, the linear operator
-        self.Ws = np.random.uniform(-r, r, size=(5, dim))
-
-        #Un biais ca coute pas cher...
-        self.B = np.random.uniform(-r, r, size=(dim))
+        self.Ws = np.random.uniform(-r, r, size=(2, dim))
 
         #Regularisation
         self.regV = reg*0.001
         self.regW = reg*0.001
         self.regWs = reg*0.0001
         self.regL = reg*0.0001
-        self.regB = reg*0.001
 
         #Initiate L, the Lexicon representation
         self.L = np.random.uniform(-r, r, size=(len(vocab), dim))
@@ -43,7 +40,7 @@ class RNN(object):
         for i, w in enumerate(vocab):
             self.vocab[w] = i
 
-        self.f = lambda X: np.tanh(X.T.dot(self.V).dot(X) + self.W.dot(X)+self.B)
+        self.f = lambda X: np.tanh(X.T.dot(self.V).dot(X) + self.W.dot(X))
         self.grad = lambda f: 1-f**2
 
         self.y = lambda x: np.exp(self.Ws.dot(x).clip(-500, 700)) \
@@ -55,12 +52,10 @@ class RNN(object):
             pickle.dump(self.V, output, -1)
             pickle.dump(self.W, output, -1)
             pickle.dump(self.Ws, output, -1)
-            pickle.dump(self.B, output, -1)
             pickle.dump(self.regV, output, -1)
             pickle.dump(self.regW, output, -1)
             pickle.dump(self.regWs, output, -1)
             pickle.dump(self.regL, output, -1)
-            pickle.dump(self.regB, output, -1)
             pickle.dump(self.L, output, -1)
             pickle.dump(self.vocab, output, -1)
 
@@ -70,12 +65,10 @@ class RNN(object):
             self.V = pickle.load(input)
             self.W = pickle.load(input)
             self.Ws = pickle.load(input)
-            self.B = pickle.load(input)
             self.regV = pickle.load(input)
             self.regW = pickle.load(input)
             self.regWs = pickle.load(input)
             self.regL = pickle.load(input)
-            self.regB = pickle.load(input)
             self.L = pickle.load(input)
             self.vocab = pickle.load(input)
 
@@ -127,7 +120,6 @@ class RNN(object):
         dV = np.zeros(self.V.shape)
         dW = np.zeros(self.W.shape)
         dL = np.zeros(self.L.shape)
-        dB = np.zeros(self.B.shape)
 
         #Initialise les deltas
         for n in X_tree.nodes:
@@ -154,14 +146,13 @@ class RNN(object):
             dWs += np.outer(pT.ypred-pT.y, pT.X)
             dV += np.tensordot(pT.d*gX, np.outer(X, X), axes=0)
             dW += np.outer(pT.d*gX, X)
-            dB += pT.d*gX
 
         #Contribution des feuilles
         for n in X_tree.leaf:
             dL[self.vocab[n.word]] += n.d
             dWs += np.outer(n.ypred-n.y, n.X)
 
-        return dWs, dV, dW, dL, dB
+        return dWs, dV, dW, dL
 
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
               warm_start=True, r=0.0001, max_iter=1000, val_set=[],
@@ -181,10 +172,7 @@ class RNN(object):
             self.W = np.random.uniform(-r, r, size=(dim, 2*dim))
     
             #Initiate Ws, the linear operator
-            self.Ws = np.random.uniform(-r, r, size=(5, dim))
-    
-            #Un biais ca coute pas cher...
-            self.B = np.random.uniform(-r, r, size=(dim))
+            self.Ws = np.random.uniform(-r, r, size=(2, dim))
     
             #Initiate L, the Lexicon representation
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
@@ -201,7 +189,6 @@ class RNN(object):
             prevError += self.regW*np.sum(self.W*self.W)/2.0
             prevError += self.regV*np.sum(self.V*self.V)/2.0
             prevError += self.regL*np.sum(self.L*self.L)/2.0
-            prevError += self.regB*np.sum(self.B*self.B)/2.0
             iniError = prevError
             minError = prevError  # optimal error so far
             glError = 0
@@ -214,20 +201,17 @@ class RNN(object):
         dVHist = np.zeros(self.V.shape)
         dWHist = np.zeros(self.W.shape)
         dLHist = np.zeros(self.L.shape)
-        dBHist = np.zeros(self.B.shape)
 
         #Adaptative LR for RMSprop
         dWsMask = np.ones(self.Ws.shape)
         dVMask = np.ones(self.V.shape)
         dWMask = np.ones(self.W.shape)
         dLMask = np.ones(self.L.shape)
-        dBMask = np.ones(self.B.shape)
 
         dWsPrev = np.zeros(self.Ws.shape)
         dVPrev = np.zeros(self.V.shape)
         dWPrev = np.zeros(self.W.shape)
         dLPrev = np.zeros(self.L.shape)
-        dBPrev = np.zeros(self.B.shape)
 
         early_stop = False
         while (not early_stop) and n_iter < max_iter:  # Critere moins random
@@ -236,7 +220,6 @@ class RNN(object):
                 dVHist = np.zeros(self.V.shape)
                 dWHist = np.zeros(self.W.shape)
                 dLHist = np.zeros(self.L.shape)
-                dBHist = np.zeros(self.B.shape)
 
             #Choose mini batch randomly
             mini_batch_samples = np.random.choice(X_trees, size=mini_batch_size)
@@ -246,32 +229,28 @@ class RNN(object):
             dVCurrent = np.zeros(self.V.shape)
             dWCurrent = np.zeros(self.W.shape)
             dLCurrent = np.zeros(self.L.shape)
-            dBCurrent = np.zeros(self.B.shape)
 
             #Mini batch pour gradient
             currentMbe = 0.0
             for X_tree in mini_batch_samples:
                 currentMbe += self.forward_pass(X_tree)
-                dWs, dV, dW, dL, dB = self.backward_pass(X_tree)
+                dWs, dV, dW, dL = self.backward_pass(X_tree)
                 dWsCurrent += dWs
                 dVCurrent += dV
                 dWCurrent += dW
                 dLCurrent += dL
-                dBCurrent += dB
 
             currentMbe /= mini_batch_size
             currentMbe += self.regWs*np.sum(self.Ws*self.Ws)/2.0
             currentMbe += self.regW*np.sum(self.W*self.W)/2.0
             currentMbe += self.regV*np.sum(self.V*self.V)/2.0
             currentMbe += self.regL*np.sum(self.L*self.L)/2.0
-            currentMbe += self.regB*np.sum(self.B*self.B)/2.0
 
             #Division par le nombre de sample + regularisation
             dWsCurrent = dWsCurrent/mini_batch_size+self.regWs*self.Ws
             dVCurrent = dVCurrent/mini_batch_size+self.regV*self.V
             dWCurrent = dWCurrent/mini_batch_size+self.regW*self.W
             dLCurrent = dLCurrent/mini_batch_size+self.regL*self.L
-            dBCurrent = dBCurrent/mini_batch_size/self.regB*self.B
 
             #Mise a jour des poids et calcul des pas
             if strat == 'AdaGrad':
@@ -280,52 +259,45 @@ class RNN(object):
                 dVHist += dVCurrent*dVCurrent
                 dWHist += dWCurrent*dWCurrent
                 dLHist += dLCurrent*dLCurrent
-                dBHist += dBCurrent*dBCurrent
 
                 dWsCurrent = eta*dWsCurrent/np.sqrt(dWsHist+eps)
                 dWCurrent = eta*dWCurrent/np.sqrt(dWHist+eps)
                 dVCurrent = eta*dVCurrent/np.sqrt(dVHist+eps)
                 dLCurrent = eta*dLCurrent/np.sqrt(dLHist+eps)
-                dBCurrent = eta*dBCurrent/np.sqrt(dBHist+eps)
             else:
                 eps = 0.001
                 dWsHist = 0.9*dWsHist + 0.1*dWsCurrent*dWsCurrent
                 dVHist = 0.9*dVHist + 0.1*dVCurrent*dVCurrent
                 dWHist = 0.9*dWHist + 0.1*dWCurrent*dWCurrent
                 dLHist = 0.9*dLHist + 0.1*dLCurrent*dLCurrent
-                dBHist = 0.9*dBHist + 0.1*dBCurrent*dBCurrent
 
                 dWsMask *= .7*(dWsPrev*dWsCurrent >= 0) + .5
                 dWMask *= .7*(dWPrev*dWCurrent >= 0) + .5
                 dVMask *= .7*(dVPrev*dVCurrent >= 0) + .5
                 dLMask *= .7*(dLPrev*dLCurrent >= 0) + .5
-                dBMask *= .7*(dBPrev*dBCurrent >= 0) + .5
 
                 dWsCurrent = eta*dWsMask.clip(1e-6, 50, out=dWsMask)*dWsCurrent/np.sqrt(dWsHist+eps)
                 dWCurrent = eta*dWMask.clip(1e-6, 50, out=dWMask)*dWCurrent/np.sqrt(dWHist+eps)
                 dVCurrent = eta*dVMask.clip(1e-6, 20, out=dVMask)*dVCurrent/np.sqrt(dVHist+eps)
                 dLCurrent = eta*dLMask.clip(1e-6, 20, out=dLMask)*dLCurrent/np.sqrt(dLHist+eps)
-                dBCurrent = eta*dBMask.clip(1e-6, 20, out=dBMask)*dBCurrent/np.sqrt(dBHist+eps)
 
             #Calcul de la norme du gradient (critere d'arret)
             gradNorm = np.sum(np.abs(dWsCurrent))
             gradNorm += np.sum(np.abs(dWCurrent))
             gradNorm += np.sum(np.abs(dVCurrent))
             gradNorm += np.sum(np.abs(dLCurrent))
-            gradNorm += np.sum(np.abs(dBCurrent))
+
             #Keep previous gradient
             dWsPrev = dWsCurrent
             dWPrev = dWCurrent
             dVPrev = dVCurrent
             dLPrev = dLCurrent
-            dBPrev = dBCurrent
 
             #Descente
             self.Ws -= dWsCurrent
             self.W -= dWCurrent
             self.V -= dVCurrent
             self.L -= dLCurrent
-            self.B -= dBCurrent
 
             #Maj de la condition d'arret
             if val_set != [] and (n_iter % n_check) == 0:
@@ -334,7 +306,6 @@ class RNN(object):
                 currentError += self.regW*np.sum(self.W*self.W)/2.0
                 currentError += self.regV*np.sum(self.V*self.V)/2.0
                 currentError += self.regL*np.sum(self.L*self.L)/2.0
-                currentError += self.regB*np.sum(self.B*self.B)/2.0
 
                 errVal.append(currentError)
                 errMB.append(currentMbe)
@@ -382,13 +353,13 @@ class RNN(object):
             self.forward_pass(X_tree)
             for n in X_tree.nodes:
                 countAll += 1
-                scAll += (np.argmax(n.ypred) == np.argmax(n.y))
+                scAll += (Tree.Tree.getSoftLabel(n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
             countRoot += 1
             n = X_tree.nodes[-1]
-            scRoot += (np.argmax(n.ypred) == np.argmax(n.y))
+            scRoot += (Tree.Tree.getSoftLabel(n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
         return scAll/countAll, scRoot/countRoot
 
-    def score_binary(self, X_trees):
+    def score_binary(self, X_trees,inc_neut=False):
         '''
         Score sur les prediction MAP pos/neg
         '''
@@ -396,32 +367,15 @@ class RNN(object):
         countRoot = 0
         scAll = 0.0
         scRoot = 0.0
-        M = np.mat('1,1,0,0,0;0,0,1,0,0;0,0,0,1,1')
         for X_tree in X_trees:
             self.forward_pass(X_tree)
             for n in X_tree.nodes:
-                if np.argmax(n.y) != 2:
-                    countAll += 1
-                    scAll += np.argmax(M.dot(n.y)) == np.argmax(M.dot(n.ypred))
+                countAll += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6)) 
+                scAll += ((n.ypred[1]<=0.5 and n.y[1]<=0.5) or (n.ypred[1]>0.5 and n.y[1]>0.5)) * (inc_neut or not (0.4 < n.y[1] <= 0.6))  
             n = X_tree.nodes[-1]
-            if np.argmax(n.y) != 2:
-                countRoot += 1
-                scRoot += np.argmax(M.dot(n.y)) == np.argmax(M.dot(n.ypred))
+            countRoot += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6)) 
+            scRoot += (n.ypred[1]<=0.5 and n.y[1]<=0.5) or (n.ypred[1]>0.5 and n.y[1]>0.5) * (inc_neut or not (0.4 < n.y[1] <= 0.6))  
         return scAll/countAll, scRoot/countRoot
-
-    def score_binary2(self, X_trees):
-        '''
-        Score sur les prediction MAP pos/neg
-        '''
-        countRoot = 0
-        scRoot = 0.0
-        V = np.mat('0.1,0.3,0.5,0.7,0.9')
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            n = X_tree.nodes[-1]
-            countRoot += 1
-            scRoot += ((V.dot(n.y) > .5) - (V.dot(n.ypred) > .5)) ** 2
-        return scRoot/countRoot
 
     def check_derivative(self, X_tree, eps=1e-6):
         '''
@@ -450,11 +404,11 @@ class RNN(object):
         confRoot = np.zeros((5, 5))
         for tree in X_trees:
             for n in tree.nodes:
-                lp = np.argmax(n.ypred)
-                l = np.argmax(n.y)
+                lp = Tree.Tree.getSoftLabel(n.ypred[1])
+                l = Tree.Tree.getSoftLabel(n.y[1])
                 confAll[l,lp] += 1
-            lp = np.argmax(tree.nodes[-1].ypred)
-            l = np.argmax(tree.nodes[-1].y)
+            lp = Tree.Tree.getSoftLabel(tree.nodes[-1].ypred[1])
+            l = Tree.Tree.getSoftLabel(tree.nodes[-1].y[1])
             confRoot[l,lp]+=1
         for lp in range(5):
             confAll[lp,:]/=np.sum(confAll[lp,:])
@@ -471,16 +425,5 @@ class RNN(object):
         y=np.zeros(self.L.shape[0])
         for i in range(self.L.shape[0]):
             _,y[i]=revert_vocab[i]
-            l=y[i]
-            if l <= 0.2:
-                y[i] = 1
-            elif 0.2 < l <= 0.4:
-                y[i] = 2
-            elif 0.4 < l <= 0.6:
-                y[i] = 3
-            elif 0.6 < l <= 0.8:
-                y[i] = 4
-            else:
-                y[i] = 5
         plt.scatter(X[:,0],X[:,1],c=y,cmap=cm.jet)
         

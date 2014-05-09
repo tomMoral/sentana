@@ -2,13 +2,9 @@
 from Node import Node
 import numpy as np
 
-#Define class parameter
-r = 0.0001
-
-
 class Tree(object):
     """docstring for Tree"""
-    def __init__(self, sentence, structure, label=None, binl=False):
+    def __init__(self, sentence, structure, label=None):
         self.sentence = sentence
         self.structure = structure
 
@@ -39,7 +35,9 @@ class Tree(object):
 
         if label is not None:
             for n in self.leaf:
-                n.y = self.getSoftLabel(label[n.word], binl=binl)
+                n.y = np.zeros(2)
+                n.y[1] = label[n.word]
+                n.y[0] = 1-n.y[1]
 
             for p, [a, b] in self.parcours:
                 aT = self.nodes[a]
@@ -49,20 +47,22 @@ class Tree(object):
                     pT.word = ' '.join([aT.word, bT.word])
                 else:
                     pT.word = ' '.join([bT.word, aT.word])
-                pT.y = self.getSoftLabel(label[pT.word])
+                pT.y = np.zeros(2)
+                pT.y[1] = label[pT.word]
+                pT.y[0] = 1-pT.y[1]
                 pT.order = aT.order
-
-    def getSoftLabel(self, l, binl=False):
-        label = np.zeros(5)
-        if l <= 0.2 + binl*0.3:
-            label[0] = 1
+                
+    @staticmethod
+    def getSoftLabel(l):
+        if l <= 0.2:
+            label = 0
         elif 0.2 < l <= 0.4:
-            label[1] = 1
-        elif 0.4 < l <= 0.6+binl*0.4:
-            label[2] = 1
+            label = 1
+        elif 0.4 < l <= 0.6:
+            label = 2
         elif 0.6 < l <= 0.8:
-            label[3] = 1
+            label = 3
         else:
-            label[4] = 1
+            label = 4
         return label
 

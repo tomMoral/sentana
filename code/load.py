@@ -27,7 +27,8 @@ if __name__ == '__main__':
                         help='Regularisation factor scaling')
     parser.add_argument('--lr', type=float, default=0.01,
                         help='Learning rate')
-
+    parser.add_argument('--n_check', type=float, default=50,
+                        help='Learning rate')
     parser.add_argument('--save_tmp', type=str, default='tmp.pkl',
                         help='Tmp file save')
 
@@ -78,11 +79,11 @@ if __name__ == '__main__':
     X_trees_test = []
     for s, t, k in zip(sentences, trees, whichSet):
         if k == 1:
-            X_trees_train.append(Tree(s, t, labels, binl=args.bin))
+            X_trees_train.append(Tree(s, t, labels))
         elif k == 2:
-            X_trees_test.append(Tree(s, t, labels, binl=args.bin))
+            X_trees_test.append(Tree(s, t, labels))
         elif k == 3:
-            X_trees_dev.append(Tree(s, t, labels, binl=args.bin))
+            X_trees_dev.append(Tree(s, t, labels))
         else:
             raise(Exception('Erreur dans le parsing train/test/dev'))
     '''
