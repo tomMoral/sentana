@@ -4,7 +4,7 @@ import pickle
 import Tree
 
 
-class RNN(object):
+class RAE(object):
     """Class to use Recursive Neural Network on Tree
 
     Usage
@@ -19,58 +19,70 @@ class RNN(object):
         self.dim = dim
 
         #Initiate V, the tensor operator
-        self.V = np.random.uniform(-r, r, size=(dim, 2*dim, 2*dim))
+        self.V = np.random.uniform(-r, r, size=(dim+1, 2*dim+2, 2*dim+2))
         self.V = (self.V+np.transpose(self.V, axes=[0, 2, 1]))/2
 
         #Initiate W, the linear operator
-        self.W = np.random.uniform(-r, r, size=(dim, 2*dim))
+        self.W = np.random.uniform(-r, r, size=(dim+1, 2*dim+2))
 
         #Initiate Ws, the linear operator
-        self.Ws = np.random.uniform(-r, r, size=(2, dim))
+        self.Ws = np.random.uniform(-r, r, size=(2, dim+1))
 
-        #Regularisation
-        self.regV = reg*0.001
-        self.regW = reg*0.001
-        self.regWs = reg*0.0001
-        self.regL = reg*0.0001
+        #Initiate VE, the encoder tensor
+        self.Ve = np.random.uniform(-r, r, size=(2*dim+2, dim+1, dim+1))
+        self.Ve = (self.Ve+np.transpose(self.Ve, axes=[0, 2, 1]))/2
+
+        #Initiate VE, the encoder tensor
+        self.We = np.random.uniform(-r, r, size=(2*dim+2, dim+1))
 
         #Initiate L, the Lexicon representation
         self.L = np.random.uniform(-r, r, size=(len(vocab), dim))
+
+        #Parameter holder
+        self.params = {}
+        self.params['V'] = self.V
+        self.params['W'] = self.W
+        self.params['Ws'] = self.Ws
+        self.params['L'] = self.L
+        self.params['Ve'] = self.Ve
+        self.params['We'] = self.We
+
+        #Regularisation
+        self.reg = {'V': 0.001*reg, 'W': 0.001*reg, 'Ws': 0.0001*reg, 'L': 0.0001*reg,
+                    'We': reg*0.0001, 'Ve': reg*0.0001}
+
         self.vocab = {}
+        self.index = {}
         for i, w in enumerate(vocab):
             self.vocab[w] = i
+            self.index[i] = w
 
         self.f = lambda X: np.tanh(X.T.dot(self.V).dot(X) + self.W.dot(X))
         self.grad = lambda f: 1-f**2
+        self.dec = lambda X: np.tanh(X.T.dot(self.Ve).dot(X) + self.We.dot(X))
 
         self.y = lambda x: np.exp(self.Ws.dot(x).clip(-500, 700)) \
             / sum(np.exp(self.Ws.dot(x).clip(-500, 700)))
 
+        self.norm = lambda X: np.sum(X*X)
+
     def save(self, saveFile):
         with open(saveFile, 'wb') as output:
             pickle.dump(self.dim, output, -1)
-            pickle.dump(self.V, output, -1)
-            pickle.dump(self.W, output, -1)
-            pickle.dump(self.Ws, output, -1)
-            pickle.dump(self.regV, output, -1)
-            pickle.dump(self.regW, output, -1)
-            pickle.dump(self.regWs, output, -1)
-            pickle.dump(self.regL, output, -1)
-            pickle.dump(self.L, output, -1)
             pickle.dump(self.vocab, output, -1)
+            for k in self.params.keys():
+                pickle.dump(self.params[k], output, -1)
+            for k in self.params.keys():
+                pickle.dump(self.reg[k], output, -1)
 
     def load(self, loadFile):
         with open(loadFile, 'rb') as input:
             self.dim = pickle.load(input)
-            self.V = pickle.load(input)
-            self.W = pickle.load(input)
-            self.Ws = pickle.load(input)
-            self.regV = pickle.load(input)
-            self.regW = pickle.load(input)
-            self.regWs = pickle.load(input)
-            self.regL = pickle.load(input)
-            self.L = pickle.load(input)
             self.vocab = pickle.load(input)
+            for k in self.params.keys():
+                self.params[k] = pickle.load(input)
+            for k in self.params.keys():
+                self.reg[k] = pickle.load(input)
 
     def error(self, val_set):
         '''
@@ -87,7 +99,8 @@ class RNN(object):
         '''
         errorVal = 0.0
         for n in X_tree.leaf:
-            n.X = self.L[self.vocab[n.word]]  # Met a jour le mot avec le Lexicon courant
+            # Met a jour le mot avec le Lexicon courant
+            n.X = np.append(self.L[self.vocab[n.word]], 0)
             n.ypred = self.y(n.X)  # Mise a jour du label predit
             n.ypred += 1e-300*(n.ypred == 0)
             assert (n.ypred != 0).all()
@@ -102,9 +115,28 @@ class RNN(object):
             else:
                 X = np.append(bT.X, aT.X)
             pT.X = self.f(X)  # Mise a jour du decripteur du parent
+            pT.X[-1] = 1
+
             pT.ypred = self.y(pT.X)  # Mise a jour du label predit
             pT.ypred += 1e-300*(pT.ypred == 0)
             errorVal += -np.sum(pT.y*np.log(pT.ypred))
+        pT.c = pT.X
+        for p, [a, b] in X_tree.parcours[::-1]:
+            aT = X_tree.nodes[a]  #
+            bT = X_tree.nodes[b]  # Recupere pour chaque triplet parent,enfant1/2 les noeuds
+            pT = X_tree.nodes[p]
+            C = self.dec(pT.c)
+            #Propagation des erreurs vers le bas
+            if aT.order < bT.order:  # Si aT est le noeud de gauche
+                aT.c = C[:self.dim+1]
+                bT.c = C[self.dim+1:]
+            else:  # aT est a droite
+                bT.c = C[:self.dim+1]
+                aT.c = C[self.dim+1:]
+
+        nn = len(X_tree.nodes)
+        for n in X_tree.nodes:
+            errorVal += np.sum((n.c-n.X)**2) / nn
         #E = sum([(self.y(n.X) - n.y) for n in X_tree.nodes])
         #print E
         #return self.Ws.dot(pT.X) -> Pas besoin de retourner le lbel, il faut le maj aussi?
@@ -116,45 +148,62 @@ class RNN(object):
         Attention: suppose la forward_pass faite
         '''
         #Initialise les gradients
-        dWs = np.zeros(self.Ws.shape)
-        dV = np.zeros(self.V.shape)
-        dW = np.zeros(self.W.shape)
-        dL = np.zeros(self.L.shape)
+        grad = {}
+        for k in self.params.keys():
+            grad[k] = np.zeros(self.params[k].shape)
 
         #Initialise les deltas
         for n in X_tree.nodes:
-            n.d = self.Ws.T.dot(n.ypred-n.y)*w_root
+            gX = self.grad(n.X)
+            gC = self.grad(n.c)
+            n.d = self.Ws.T.dot(n.ypred-n.y)*gX*w_root
+            n.dr = 2*(n.c-n.X)*gC
 
-        n.d = self.Ws.T.dot(n.ypred-n.y)*(1-w_root)
+        n.d += self.Ws.T.dot(n.ypred-n.y)*gX*(1-w_root)
+
+        err_rec = 0
+
+        for p, [a, b] in X_tree.parcours:
+            aT = X_tree.nodes[a]  #
+            bT = X_tree.nodes[b]  # Recupere pour chaque triplet parent,enfant1/2 les noeuds
+            pT = X_tree.nodes[p]
+            if aT.order < bT.order:
+                dR = np.append(aT.dr, bT.dr)
+            else:
+                dR = np.append(bT.dr, aT.dr)
+            pT.dr += dR.dot(self.We) + 2*dR.dot(self.Ve.dot(pT.X))
+            grad['We'] += np.outer(dR, pT.X)
+            grad['Ve'] += np.tensordot(dR, np.outer(pT.X, pT.X), axes=0)
 
         #Descend dans l arbre
         for p, [a, b] in X_tree.parcours[::-1]:
             aT = X_tree.nodes[a]  #
             bT = X_tree.nodes[b]  # Recupere pour chaque triplet parent,enfant1/2 les noeuds
             pT = X_tree.nodes[p]
-            gX = self.grad(pT.X)
             #Propagation des erreurs vers le bas
             if aT.order < bT.order:  # Si aT est le noeud de gauche
                 X = np.append(aT.X, bT.X)
-                ddown = (self.W.T.dot(pT.d*gX)+2*(pT.d*gX).dot(self.V.dot(X)))
-                aT.d += ddown[:self.dim]
-                bT.d += ddown[self.dim:]
+                ddown = (self.W.T.dot(pT.d+pT.dr)+2*(pT.d+pT.dr).dot(self.V.dot(X)))
+                aT.d += ddown[:self.dim+1]
+                bT.d += ddown[self.dim+1:]
             else:  # aT est a droite
                 X = np.append(bT.X, aT.X)
-                ddown = (self.W.T.dot(pT.d*gX)+2*(pT.d*gX).dot(self.V.dot(X)))
-                aT.d += ddown[self.dim:]
-                bT.d += ddown[:self.dim]
+                ddown = (self.W.T.dot(pT.d+pT.dr)+2*(pT.d+pT.dr).dot(self.V.dot(X)))
+                aT.d += ddown[self.dim+1:]
+                bT.d += ddown[:self.dim+1]
+            err_rec += np.sum((aT.c-aT.X)**2)
+            err_rec += np.sum((bT.c-bT.X)**2)
             #Contribution aux gradients du pT
-            dWs += np.outer(pT.ypred-pT.y, pT.X)
-            dV += np.tensordot(pT.d*gX, np.outer(X, X), axes=0)
-            dW += np.outer(pT.d*gX, X)
+            grad['Ws'] += np.outer(pT.ypred-pT.y, pT.X)
+            grad['V'] += np.tensordot(pT.d + pT.dr, np.outer(X, X), axes=0)
+            grad['W'] += np.outer(pT.d + pT.dr, X)
 
         #Contribution des feuilles
         for n in X_tree.leaf:
-            dL[self.vocab[n.word]] += n.d
-            dWs += np.outer(n.ypred-n.y, n.X)
+            grad['L'][self.vocab[n.word]] += n.d[:-1] + n.dr[:-1]
+            grad['Ws'] += np.outer(n.ypred-n.y, n.X)
 
-        return dWs, dV, dW, dL
+        return grad
 
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
               warm_start=True, r=0.0001, max_iter=1000, val_set=[],
@@ -167,17 +216,17 @@ class RNN(object):
         if not warm_start:
             dim = self.dim
             #Initiate V, the tensor operator
-            self.V = np.random.uniform(-r, r, size=(dim, 2*dim, 2*dim))
-            self.V = (self.V+np.transpose(self.V, axes=[0, 2, 1]))/2
+            self.params['V'] = np.random.uniform(-r, r, size=(dim+1, 2*dim+2, 2*dim+2))
+            self.params['V'] = (self.V+np.transpose(self.V, axes=[0, 2, 1]))/2
 
             #Initiate W, the linear operator
-            self.W = np.random.uniform(-r, r, size=(dim, 2*dim))
+            self.params['W'] = np.random.uniform(-r, r, size=(dim+1, 2*dim+2))
 
             #Initiate Ws, the linear operator
-            self.Ws = np.random.uniform(-r, r, size=(2, dim))
+            self.params['Ws'] = np.random.uniform(-r, r, size=(2, dim+1))
 
             #Initiate L, the Lexicon representation
-            self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
+            self.params['L'] = np.random.uniform(-r, r, size=(len(self.vocab), dim))
 
         #Liste pour erreurs
         self.errMB = []
@@ -189,11 +238,9 @@ class RNN(object):
         n_iter = 1
         gradNorm = 1.0
         if val_set != []:
-            prevError = self.error(val_set)
-            prevError += self.regWs*np.sum(self.Ws*self.Ws)/2.0
-            prevError += self.regW*np.sum(self.W*self.W)/2.0
-            prevError += self.regV*np.sum(self.V*self.V)/2.0
-            prevError += self.regL*np.sum(self.L*self.L)/2.0
+            prevError = self.error(val_set) / len(val_set)
+            for k in self.params.keys():
+                prevError += self.reg[k]*self.norm(self.params[k])/2.0
             iniError = prevError
             minError = prevError  # optimal error so far
             glError = 0
@@ -202,115 +249,77 @@ class RNN(object):
 
         # Normalisation pour AdaGrad/Rms-prop
         eta = learning_rate
-        dWsHist = np.zeros(self.Ws.shape)
-        dVHist = np.zeros(self.V.shape)
-        dWHist = np.zeros(self.W.shape)
-        dLHist = np.zeros(self.L.shape)
-
-        #Adaptative LR for RMSprop
-        dWsMask = np.ones(self.Ws.shape)
-        dVMask = np.ones(self.V.shape)
-        dWMask = np.ones(self.W.shape)
-        dLMask = np.ones(self.L.shape)
-
-        dWsPrev = np.zeros(self.Ws.shape)
-        dVPrev = np.zeros(self.V.shape)
-        dWPrev = np.zeros(self.W.shape)
-        dLPrev = np.zeros(self.L.shape)
+        dHist = {}
+        dMask = {}
+        dPrev = {}
+        for k in self.params.keys():
+            sh = self.params[k].shape
+            dHist[k] = np.zeros(sh)
+            dMask[k] = np.ones(sh)
+            dPrev[k] = np.zeros(sh)
 
         early_stop = False
         while (not early_stop) and n_iter < max_iter:  # Critere moins random
             if n_iter % reset_freq == 0 and reset_freq > 0:  # Remise a zero des rates cf Socher
-                dWsHist = np.zeros(self.Ws.shape)
-                dVHist = np.zeros(self.V.shape)
-                dWHist = np.zeros(self.W.shape)
-                dLHist = np.zeros(self.L.shape)
+                for k in self.params.keys():
+                    dHist[k] = np.zeros(self.params[k].shape)
 
             #Choose mini batch randomly
             mini_batch_samples = np.random.choice(X_trees, size=mini_batch_size)
 
             #Initialize gradients to 0
-            dWsCurrent = np.zeros(self.Ws.shape)
-            dVCurrent = np.zeros(self.V.shape)
-            dWCurrent = np.zeros(self.W.shape)
-            dLCurrent = np.zeros(self.L.shape)
+            dCurrent = {}
+            for k in self.params.keys():
+                    dCurrent[k] = np.zeros(self.params[k].shape)
 
             #Mini batch pour gradient
             currentMbe = 0.0
             for X_tree in mini_batch_samples:
                 currentMbe += self.forward_pass(X_tree)
-                dWs, dV, dW, dL = self.backward_pass(X_tree, w_root=w_root)
-                dWsCurrent += dWs
-                dVCurrent += dV
-                dWCurrent += dW
-                dLCurrent += dL
+                grad = self.backward_pass(X_tree, w_root=w_root)
+                for k in self.params.keys():
+                    dCurrent[k] += grad[k]
 
             currentMbe /= mini_batch_size
-            currentMbe += self.regWs*np.sum(self.Ws*self.Ws)/2.0
-            currentMbe += self.regW*np.sum(self.W*self.W)/2.0
-            currentMbe += self.regV*np.sum(self.V*self.V)/2.0
-            currentMbe += self.regL*np.sum(self.L*self.L)/2.0
+            for k in self.params.keys():
+                currentMbe += self.reg[k]*self.norm(self.params[k])/2.0
 
             #Division par le nombre de sample + regularisation
-            dWsCurrent = dWsCurrent/mini_batch_size+self.regWs*self.Ws
-            dVCurrent = dVCurrent/mini_batch_size+self.regV*self.V
-            dWCurrent = dWCurrent/mini_batch_size+self.regW*self.W
-            dLCurrent = dLCurrent/mini_batch_size+self.regL*self.L
+            for k in self.params.keys():
+                dCurrent[k] = dCurrent[k]/mini_batch_size + self.reg[k]*self.params[k]
 
             #Mise a jour des poids et calcul des pas
             if strat == 'AdaGrad':
                 eps = 0.001  # Adagrad >0 ? cf Socher
-                dWsHist += dWsCurrent*dWsCurrent
-                dVHist += dVCurrent*dVCurrent
-                dWHist += dWCurrent*dWCurrent
-                dLHist += dLCurrent*dLCurrent
-
-                dWsCurrent = eta*dWsCurrent/np.sqrt(dWsHist+eps)
-                dWCurrent = eta*dWCurrent/np.sqrt(dWHist+eps)
-                dVCurrent = eta*dVCurrent/np.sqrt(dVHist+eps)
-                dLCurrent = eta*dLCurrent/np.sqrt(dLHist+eps)
+                for k in self.params.keys():
+                    dHist[k] += dCurrent[k]*dCurrent[k]
+                    dCurrent[k] = eta*dCurrent[k]/np.sqrt(dHist[k]+eps)
             else:
                 eps = 0.001
-                dWsHist = 0.9*dWsHist + 0.1*dWsCurrent*dWsCurrent
-                dVHist = 0.9*dVHist + 0.1*dVCurrent*dVCurrent
-                dWHist = 0.9*dWHist + 0.1*dWCurrent*dWCurrent
-                dLHist = 0.9*dLHist + 0.1*dLCurrent*dLCurrent
-
-                dWsMask *= .7*(dWsPrev*dWsCurrent >= 0) + .5
-                dWMask *= .7*(dWPrev*dWCurrent >= 0) + .5
-                dVMask *= .7*(dVPrev*dVCurrent >= 0) + .5
-                dLMask *= .7*(dLPrev*dLCurrent >= 0) + .5
-
-                dWsCurrent = eta*dWsMask.clip(1e-6, 50, out=dWsMask)*dWsCurrent/np.sqrt(dWsHist+eps)
-                dWCurrent = eta*dWMask.clip(1e-6, 50, out=dWMask)*dWCurrent/np.sqrt(dWHist+eps)
-                dVCurrent = eta*dVMask.clip(1e-6, 20, out=dVMask)*dVCurrent/np.sqrt(dVHist+eps)
-                dLCurrent = eta*dLMask.clip(1e-6, 20, out=dLMask)*dLCurrent/np.sqrt(dLHist+eps)
+                for k in self.params.keys():
+                    dHist[k] = 0.9*dHist[k] + 0.1*dCurrent[k]*dCurrent[k]
+                    dMask[k] *= .7*(dPrev[k]*dCurrent[k] >= 0) + .5
+                    dCurrent[k] = eta*dMask[k].clip(1e-6, 50, out=dMask[k]) *\
+                        dCurrent[k]/np.sqrt(dHist[k]+eps)
 
             #Calcul de la norme du gradient (critere d'arret)
-            gradNorm = np.sum(np.abs(dWsCurrent))
-            gradNorm += np.sum(np.abs(dWCurrent))
-            gradNorm += np.sum(np.abs(dVCurrent))
-            gradNorm += np.sum(np.abs(dLCurrent))
+            gradNorm = 0
+            for k in self.params.keys():
+                gradNorm += np.sum(np.abs(dCurrent[k]))
 
             #Keep previous gradient
-            dWsPrev = dWsCurrent
-            dWPrev = dWCurrent
-            dVPrev = dVCurrent
-            dLPrev = dLCurrent
+            for k in self.params.keys():
+                dPrev[k] = dCurrent[k]
 
             #Descente
-            self.Ws -= dWsCurrent
-            self.W -= dWCurrent
-            self.V -= dVCurrent
-            self.L -= dLCurrent
+            for k in self.params.keys():
+                self.params[k] -= dCurrent[k]
 
             #Maj de la condition d'arret
             if val_set != [] and (n_iter % n_check) == 0:
                 currentError = self.error(val_set)
-                currentError += self.regWs*np.sum(self.Ws*self.Ws)/2.0
-                currentError += self.regW*np.sum(self.W*self.W)/2.0
-                currentError += self.regV*np.sum(self.V*self.V)/2.0
-                currentError += self.regL*np.sum(self.L*self.L)/2.0
+                for k in self.params.keys():
+                    currentError += self.reg[k]*self.norm(self.params[k])/2.0
 
                 errVal.append(currentError)
                 errMB.append(currentMbe)
@@ -362,24 +371,6 @@ class RNN(object):
             countRoot += 1
             n = X_tree.nodes[-1]
             scRoot += (Tree.Tree.getSoftLabel(n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
-        return scAll/countAll, scRoot/countRoot
-
-    def score_eps(self, X_trees, eps):
-        '''
-        Score sur les predictions MAP avec 5 label
-        '''
-        countAll = 0
-        countRoot = 0
-        scAll = 0.0
-        scRoot = 0.0
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                countAll += 1
-                scAll += (abs(n.ypred[1] - n.y[1]) <= eps)
-            countRoot += 1
-            n = X_tree.nodes[-1]
-            scRoot += (abs(n.ypred[1] - n.y[1]) <= eps)
         return scAll/countAll, scRoot/countRoot
 
     def score_binary(self, X_trees, inc_neut=False):
@@ -458,17 +449,24 @@ class RNN(object):
             _, y[i] = revert_vocab[i]
         plt.scatter(X[:, 0], X[:, 1], c=y, cmap=cm.jet)
 
-    def plot_eps_curve(self, X, n_pts):
-        import matplotlib.pyplot as plt
+    def sample_w(self, p):
+        dist = ((self.L-p)**2).sum(axis=1)
+        i0 = dist.argmin()
+        return self.index[i0]
 
-        eps = np.logspace(-3, 0, n_pts)
-        curve_r = []
-        curve_a = []
-        for e in eps:
-            a, r = self.score_eps(X, e)
-            curve_r.append(r)
-            curve_a.append(a)
-
-        plt.semilogx(eps, curve_a)
-        plt.semilogx(eps, curve_r)
-        plt.show()
+    def sample(self, p):
+        queue = [p]
+        while len(queue) != 0:
+            curr = queue.pop()
+            self.dec(curr)
+            C = self.dec(curr)
+            ac = C[:self.dim+1:]
+            bc = C[self.dim+1:]
+            if ac[-1] > 0.5:
+                queue.append(ac)
+            else:
+                print self.sample_w(ac[:-1])
+            if bc[-1] > 0.5:
+                queue.append(bc)
+            else:
+                print self.sample_w(bc[:-1])
