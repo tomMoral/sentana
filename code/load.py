@@ -59,4 +59,4 @@ def load():
             X_trees_dev.append(Tree(s, t, labels))
         else:
             raise(Exception('Erreur dans le parsing train/test/dev'))
-    return lexicon, X_trees_train, X_trees_dev, X_trees_test
+    return lexicon, X_trees_train, X_trees_dev, X_trees_test, labels

@@ -35,7 +35,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     from load import load
-    lexicon, X_trees_train, X_trees_dev, X_trees_test = load()
+    lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = load()
 
     if args.rae:
         from RAE import RAE
@@ -62,3 +62,29 @@ if __name__ == '__main__':
     print 'Fine grain\tTrain\tTest\tValidation'
     print 'Overall\t\t{:.3}\t{:.3}\t{:.3}'.format(sa_trn, sa_tst, sa_val)
     print 'Root\t\t{:.3}\t{:.3}\t{:.3}'.format(sr_trn, sr_tst, sr_val)
+
+    colors = {}
+    n_gram = {}
+    for x in X_trees_test:
+        for N in x.nodes:
+            n = len(N.word.split(' '))
+            l = n_gram.get(n, [])
+            l.append(N.X)
+            n_gram[n] = l
+            y = lab[N.word]
+            l = colors.get(n, [])
+            if y < 0.2:
+                l.append(0)
+            elif y < 0.4:
+                l.append(1)
+            elif y < 0.6:
+                l.append(2)
+            elif y < 0.8:
+                l.append(3)
+            else:
+                l.append(4)
+            colors[n] = l
+
+    import numpy as np
+    for k in n_gram.keys():
+        n_gram[k] = np.array(n_gram[k])

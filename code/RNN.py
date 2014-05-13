@@ -472,3 +472,5 @@ class RNN(object):
         plt.semilogx(eps, curve_a)
         plt.semilogx(eps, curve_r)
         plt.show()
+
+        return curve_a, curve_r

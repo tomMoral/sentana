@@ -61,8 +61,8 @@ class RAE(object):
         self.grad = lambda f: 1-f**2
         self.dec = lambda X: np.tanh(X.T.dot(self.Ve).dot(X) + self.We.dot(X))
 
-        self.y = lambda x: np.exp(self.Ws.dot(x).clip(-500, 700)) \
-            / sum(np.exp(self.Ws.dot(x).clip(-500, 700)))
+        self.y = lambda X: np.exp(self.Ws.dot(X).clip(-500, 700)) \
+            / sum(np.exp(self.Ws.dot(X).clip(-500, 700)))
 
         self.norm = lambda X: np.sum(X*X)
 
@@ -156,7 +156,7 @@ class RAE(object):
         for n in X_tree.nodes:
             gX = self.grad(n.X)
             gC = self.grad(n.c)
-            n.d = self.Ws.T.dot(n.ypred-n.y)*gX*w_root
+            n.d = self.Ws.T.dot(n.ypred-n.y)*gX*w_root - 2*(n.c-n.X)*gX
             n.dr = 2*(n.c-n.X)*gC
 
         n.d += self.Ws.T.dot(n.ypred-n.y)*gX*(1-w_root)
@@ -224,6 +224,13 @@ class RAE(object):
 
             #Initiate Ws, the linear operator
             self.params['Ws'] = np.random.uniform(-r, r, size=(2, dim+1))
+
+            #Initiate VE, the encoder tensor
+            self.Ve = np.random.uniform(-r, r, size=(2*dim+2, dim+1, dim+1))
+            self.Ve = (self.Ve+np.transpose(self.Ve, axes=[0, 2, 1]))/2
+
+            #Initiate VE, the encoder tensor
+            self.We = np.random.uniform(-r, r, size=(2*dim+2, dim+1))
 
             #Initiate L, the Lexicon representation
             self.params['L'] = np.random.uniform(-r, r, size=(len(self.vocab), dim))
@@ -373,6 +380,24 @@ class RAE(object):
             scRoot += (Tree.Tree.getSoftLabel(n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
         return scAll/countAll, scRoot/countRoot
 
+    def score_eps(self, X_trees, eps):
+        '''
+        Score sur les predictions MAP avec 5 label
+        '''
+        countAll = 0
+        countRoot = 0
+        scAll = 0.0
+        scRoot = 0.0
+        for X_tree in X_trees:
+            self.forward_pass(X_tree)
+            for n in X_tree.nodes:
+                countAll += 1
+                scAll += (abs(n.ypred[1] - n.y[1]) <= eps)
+            countRoot += 1
+            n = X_tree.nodes[-1]
+            scRoot += (abs(n.ypred[1] - n.y[1]) <= eps)
+        return scAll/countAll, scRoot/countRoot
+
     def score_binary(self, X_trees, inc_neut=False):
         '''
         Score sur les prediction MAP pos/neg
@@ -462,11 +487,28 @@ class RAE(object):
             C = self.dec(curr)
             ac = C[:self.dim+1:]
             bc = C[self.dim+1:]
-            if ac[-1] > 0.5:
+            if ac[-1] > 0.:
                 queue.append(ac)
             else:
                 print self.sample_w(ac[:-1])
-            if bc[-1] > 0.5:
+            if bc[-1] > 0.:
                 queue.append(bc)
             else:
                 print self.sample_w(bc[:-1])
+
+    def plot_eps_curve(self, X, n_pts):
+        import matplotlib.pyplot as plt
+
+        eps = np.logspace(-3, 0, n_pts)
+        curve_r = []
+        curve_a = []
+        for e in eps:
+            a, r = self.score_eps(X, e)
+            curve_r.append(r)
+            curve_a.append(a)
+
+        plt.semilogx(eps, curve_a)
+        plt.semilogx(eps, curve_r)
+        plt.show()
+
+        return curve_a, curve_r
