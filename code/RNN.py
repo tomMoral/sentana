@@ -406,24 +406,40 @@ class RNN(object):
             for n in tree.nodes:
                 lp = Tree.Tree.getSoftLabel(n.ypred[1])
                 l = Tree.Tree.getSoftLabel(n.y[1])
-                confAll[l,lp] += 1
+                confAll[l, lp] += 1
             lp = Tree.Tree.getSoftLabel(tree.nodes[-1].ypred[1])
             l = Tree.Tree.getSoftLabel(tree.nodes[-1].y[1])
-            confRoot[l,lp]+=1
+            confRoot[l, lp] += 1
         for lp in range(5):
-            confAll[lp,:]/=np.sum(confAll[lp,:])
-            confRoot[lp,:]/=np.sum(confRoot[lp,:])
-        return confAll,confRoot
+            confAll[lp, :] /= np.sum(confAll[lp, :])
+            confRoot[lp, :] /= np.sum(confRoot[lp, :])
+        return confAll, confRoot
 
-    def plot_words_2D(self,labels):
+    def plot_words_2D(self, labels):
         from sklearn.decomposition import PCA
         import matplotlib.pyplot as plt
         import matplotlib.cm as cm
-        pca=PCA(n_components=2)
-        X=pca.fit_transform(self.L)
-        revert_vocab={i:(w,labels[w]) for (w,i) in self.vocab.iteritems()}
-        y=np.zeros(self.L.shape[0])
+        pca = PCA(n_components=2)
+        X = pca.fit_transform(self.L)
+        revert_vocab = {i: (w, labels[w]) for (w, i) in self.vocab.iteritems()}
+        y = np.zeros(self.L.shape[0])
         for i in range(self.L.shape[0]):
-            _,y[i]=revert_vocab[i]
-        plt.scatter(X[:,0],X[:,1],c=y,cmap=cm.jet)
-        
+            _, y[i] = revert_vocab[i]
+        plt.scatter(X[:, 0], X[:, 1], c=y, cmap=cm.jet)
+
+    def score_eps(self, X_trees, eps):
+        '''Score sur les predictions MAP avec 5 label
+        '''
+        countAll = 0
+        countRoot = 0
+        scAll = 0.0
+        scRoot = 0.0
+        for X_tree in X_trees:
+            self.forward_pass(X_tree)
+            for n in X_tree.nodes:
+                countAll += 1
+                scAll += (abs(n.ypred[1] - n.y[1]) <= eps)
+            countRoot += 1
+            n = X_tree.nodes[-1]
+            scRoot += (abs(n.ypred[1] - n.y[1]) <= eps)
+        return scAll/countAll, scRoot/countRoot
