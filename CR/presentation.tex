@@ -228,7 +228,7 @@ $\Rightarrow$ On tune le learning rate en fonction de la dynamique du gradient.
 \multicolumn{1}{c}{} & \multicolumn{2}{| c |}{Fine} & \multicolumn{2}{| c |}{Binaire}\\\cline{2-5}
 \multicolumn{1}{c |}{} & All node & Root & All nodes & Root \\\hline
 Socher & 80.7  & 45.7 & 87.6 & 85.4\\\hline
-Notre modèle & 79.7 & 42.2  & 86.7 & 83.3\\\hline
+Notre modèle & 79.7 & 42.2  & 86.6 & 90.6\\\hline
 \end{tabular}
 \end{center}
 
@@ -282,6 +282,17 @@ $\Rightarrow$ Meilleur prise en compte de l'information?
 \includegraphics[scale=0.2]{fig/model_RAE.png}
 \label{}
 \end{figure}
+\end{itemize}
+\end{frame}
+
+%------------------------------------------------
+
+\begin{frame}
+\frametitle{So far...}
+\begin{itemize}\setlength{\itemsep}{5mm}
+\item Back propagation découle de celle de notre modèle précédent
+\item Ajout d'une dimension pour le sampling
+\item Pour le moment, pas de structure, mais du sentiment.
 \end{itemize}
 \end{frame}
 
