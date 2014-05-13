@@ -86,7 +86,7 @@
 
 \title[Sentiment analysis with RNN]{Analyse de sentiment par réseaux neuronaux réccurents} % The short title appears at the bottom of every slide, the full title is only on the title page
 
-\author{Bertrand Rondepierre \& Thomas Moreau} % Your name
+\author{Thomas Moreau \& Bertrand Rondepierre} % Your name
 \institute[] % Your institution as it will appear on the bottom of every slide, may be shorthand to save space
 {
 Télécom paristech - MDI343 \\
@@ -112,17 +112,21 @@ Télécom paristech - MDI343 \\
 \section{Analyse de sentiment} % Sections can be created in order to organize your presentation into discrete blocks, all sections and subsections are automatically printed in the table of contents as an overview of the talk
 %------------------------------------------------
 
-\subsection{Les objectifs}
+%\subsection{Les objectifs}
 
 %------------------------------------------------
 
 \begin{frame}
 \frametitle{Les Objectifs}
 \begin{itemize}\setlength{\itemsep}{5mm}
-\item Catégoriser l'opinion général exprimer par une phrase
-\item Plusieurs niveaux (analyse binaire / fine)
-\item Représenter la phrase dans un espace propre qui permettre de mettre en lumière l'opinion qu'elle contient
-\item Généré des phrases?
+\item Catégoriser l'opinion générale exprimée par une phrase
+\item Plusieurs niveaux :
+\begin{itemize}
+\item Binaire : positif/négatif
+\item Fine : Très négatif, négatif, neutre, positif, très positif
+\end{itemize}
+\item Représenter la phrase dans un espace propre qui permet de mettre en lumière l'opinion qu'elle contient
+\item Génération de phrases ?
 \end{itemize}
 \end{frame}
 
@@ -131,8 +135,8 @@ Télécom paristech - MDI343 \\
 \begin{frame}
 \frametitle{Le Stanford Tree bank}
 \begin{itemize}\setlength{\itemsep}{5mm}
-\item 11 855 critiques de film
-\item Labels et structure de la phrase sous forme d'arbre\\
+\item 11 855 critiques de film issues de Rotten tomatoes
+\item Structure de la phrase sous forme d'arbre et labels au niveau noeud\\
 $\Rightarrow$ Possibilité d'analyse fine à chaque noeuds
 \end{itemize}
 
@@ -147,27 +151,63 @@ $\Rightarrow$ Possibilité d'analyse fine à chaque noeuds
 %------------------------------------------------
 
 \begin{frame}
-\frametitle{Le model}
+\frametitle{Le modèle}
 \begin{itemize}\setlength{\itemsep}{7mm}
-\item \textbf{Classique}: Bag of words 
-\item N'analyse pas la structure de la phrase (négation, expression)\\
+\item \textbf{Classique}: Sac de mots - bag of word 
+\item Ne tient pas compte de la structure de la phrase, seulement du nombre d'occurrences. 
+\item Pourtant besoin de prendre en compte structure subtiles/fines : négation, expression etc...\\
 \emph{This movie was actually neither that funny, nor super witty.}
-\item L'idée est d'utiliser la structure d'arbre pour predire le sentiment de la phrase.
-\item On cherche aussi a optimiser la représentation des mots
+\item Idée : utiliser la structure d'arbre pour prédire le sentiment à tous les niveaux de l'arbre, puis au niveau de la phrase complète.
+\item On cherche aussi a optimiser la représentation des mots et phrases dans l'espace englobant.
 \end{itemize}
 
 \end{frame}
 
-%------------------------------------------------
-\section{L'apprentissage du model}
+\begin{frame}
+\frametitle{Réseau récurrent}
+\begin{columns}
+\begin{column}{0.45\textwidth}
+Paramètres :
+\begin{enumerate}
+\item Dictionnaire des mots $L\in\mathbb{R}^{|V|\times d}$ 
+\item $V\in\mathbb{R}^{d\times 2d\times 2d}$ le tenseur
+\item $W\in\mathbb{R}^{d\times 2d}$ opérateur linéaire 
+\item $W_s\in\mathbb{R}^{C\times d}$ softmax à chaque nœud où on fait une prédiction.
+\end{enumerate}
+\end{column}
+\begin{column}{0.45\textwidth}
+\includegraphics[width=\textwidth]{fig/RNN.png}
+\end{column}
+\end{columns}
+\end{frame}
 
 \begin{frame}
-\frametitle{Fonction de cout}
-\begin{itemize}\setlength{\itemsep}{7mm}
-\item $ \displaystyle   E = \sum_{phrase}\sum_{nodes} t_i \log y_i$.
-\item Dans le papier, met les labels en dimension 5\\
-$\Rightarrow$ suppose equi distance entre les labels
-\item Notre approche: regression et attribution d'un label avec une frontière fixe.
+\frametitle{Réseau récurrent}
+Forward pass (données $\rightarrow$ représentations + labels) :
+\begin{enumerate}
+\item L donne les représentation aux feuilles = mots
+\item Pour deux enfants $i_1,i_2$ du nœud $i$ :
+$$x^i=f\left(\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix}^T V^{[1:d]}\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix} + W\begin{bmatrix} x^{i_1} \\ x^{i_2} \end{bmatrix}\right)$$
+Où $f$ est la fonction d'activation du réseau : $f=\tanh$ ici.
+\item A chaque noeud où on dispose de la représentation $x^i$, softmax : $y^i=\sigma(W_s x^i)$ où :
+$$\sigma_j(v)=\frac{\exp(v_j)}{\sum_{k=1}^C \exp(v_k)}$$
+\end{enumerate}
+\end{frame}
+%------------------------------------------------
+\section{L'apprentissage du modèle}
+
+\begin{frame}
+\frametitle{Fonction à optimiser}
+Pour une distribution de proba cible $t^i$ au niveau du nœud $i$
+\begin{itemize}\setlength{\itemsep}{4mm}
+\item $ \displaystyle   E = \sum_{phrase}\sum_{nodes} D_{KL}(t^i||y^i)=\sum_{phrase}\sum_{nodes}\sum_{k}t^i_k \log y^i_k +C$.
+\item Socher construit la distribution cible avec du one-hot encoding, ie binarise les 5 labels TN,N,Neutre,P,TP\\
+$\rightarrow$ Pénalise de la même façon une erreur positif/très positif que très négatif/très positif.
+\item Notre approche: 
+\begin{itemize}
+\item Approcher (KL) la probabilité $P[S=1]$ pour $S\in\{-1,1\}$ représentant le sentiment.
+\item Construire la probabilité cible avec chaque sentiment représentant un niveau sur l'échelle $[0,1]$ (e.g neutre $=0.5$)
+\end{itemize}
 \end{itemize}
 \end{frame}
 
@@ -175,15 +215,17 @@ $\Rightarrow$ suppose equi distance entre les labels
 
 \begin{frame}
 \frametitle{Apprentissage}
-\begin{itemize}\setlength{\itemsep}{7mm}
-\item Calcul du gradient par back propagation
+\begin{itemize}
+\item Rétropropagation des erreurs $\frac{\partial E^i}{\partial \theta} = (y^i-t^i)W_s\frac{\partial{x^i}}{\partial\theta} $:
 \begin{align*}
-	\frac{\partial E}{\partial \theta} = \frac{t_i}{y_i} F'(y_i)\left[\frac{\partial W}{\partial \theta}x_{i-1} + \frac{\partial V}{\partial \theta} x_{i-1}x_{i-1}^T + \left( 2 V x_{i-1} + W  \right) \frac{\partial x_{i-1}}{\partial \theta} \right]
+	\frac{\partial{x^i}}{\partial\theta} &=F(x_j^i) \left( 2\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}^T V^{[j]} +W_{j:}\right)\frac{\partial}{\partial\theta}\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}
+\\ &+ \begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix}^T \frac{\partial V^{[j]}}{\partial\theta}\begin{bmatrix} x^{i_g} \\ x^{i_d} \end{bmatrix} + \frac{\partial W_{j:}}{\partial\theta}\begin{bmatrix} x^{i_g} \\ x^{i_d}\end{bmatrix}
 \end{align*}
-\item Notre model implémente Ada-grad \\
-$\Rightarrow$ Principe est de réduire le learning rate des poids qui ont déja beaucoup été updaté.
-\item Autre solution: Rms prop\\
-$\Rightarrow$ On tune le learning rate en fonction de la dynamique du gradient.
+Pour le noeud $i$ avec $F$ telle que $F(f(x))=f'(x)$
+\item Stratégie d'optimisation : AdaGrad \\
+$\Rightarrow$ Principe : descente de gradient avec learning rate obtenu en diviser par la sommes des carrés des gradients déjà calculés. Favorise les features rare.
+\item Autre solution: RPROP (resilient backpropagation) : \\
+$\Rightarrow$ Augmentation/diminution multiplicative du learning rate en fonction de la dynamique du gradient.
 \end{itemize}
 \end{frame}
 
@@ -215,7 +257,7 @@ $\Rightarrow$ On tune le learning rate en fonction de la dynamique du gradient.
 \includegraphics[scale=0.4]{fig/CourbeValRprop.png}
 \caption{Courbe d'apprentisssage pour AdaGrad \emph{(gauche)} et Rprop \emph{(droite)}}
 \end{figure}
-
+Expérimentalement AdaGrad atteint un minimum local plus rapidement que Rprop qui se bloque beaucoup plus tôt.
 \end{frame}
 
 %------------------------------------------------
@@ -235,8 +277,29 @@ Notre modèle & 79.7 & 42.2  & 86.6 & 90.6\\\hline
 \begin{figure}[htp]
 \centering
 \includegraphics[scale=0.5]{fig/CMLastTrain.png}
-\includegraphics[scale=0.5]{fig/CMLastTrain.png}
-\caption{Matrice de confusion \emph{(gauche)} Noeuds \emph{(droite)} Root}
+\includegraphics[scale=0.5]{fig/NewModelCFA.png}
+\caption{Matrice de confusion Noeuds : Socher (gauche) nous (droite)}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Resultat de Classification}
+\begin{center}
+\begin{tabular}{| c | c | c | c | c |}
+\cline{2-5}
+\multicolumn{1}{c}{} & \multicolumn{2}{| c |}{Fine} & \multicolumn{2}{| c |}{Binaire}\\\cline{2-5}
+\multicolumn{1}{c |}{} & All node & Root & All nodes & Root \\\hline
+Socher & 80.7  & 45.7 & 87.6 & 85.4\\\hline
+Notre modèle & 79.7 & 42.2  & 86.6 & 90.6\\\hline
+\end{tabular}
+\end{center}
+
+\begin{figure}[htp]
+\centering
+\includegraphics[scale=0.5]{fig/CMLastTrainRoot.png}
+\includegraphics[scale=0.5]{fig/NewModelCFR.png}
+\caption{Matrice de confusion racines : Socher (gauche) nous (droite)}
 \end{figure}
 
 \end{frame}
@@ -244,8 +307,8 @@ Notre modèle & 79.7 & 42.2  & 86.6 & 90.6\\\hline
 %------------------------------------------------
 
 \begin{frame}
-\frametitle{Resultat de Classification}
-
+\frametitle{Résultat de Classification}
+On représente pour notre modèle la précision en fonction de $\varepsilon$, ie le pourcentage de classification correcte avec des intervalles $|y^i-t^i|<\varepsilon$
 \begin{figure}[htp]
 \centering
 \includegraphics[scale=0.4]{fig/log_eps_curve.png}
@@ -258,37 +321,37 @@ Notre modèle & 79.7 & 42.2  & 86.6 & 90.6\\\hline
 %------------------------------------------------
 
 \begin{frame}
-\frametitle{Representation apprise - Mots}
+\frametitle{Représentations apprises - Mots}
+\only<1> En représentant en 2D
 \begin{figure}[htp]
 \centering
-\includegraphics[scale=0.25]{fig/WordPlot1.png}
-\includegraphics[scale=0.25]{fig/model2d.png}
-
-\caption[caption]{PCA de la representation des mots en dimension 2. \hspace{\textwidth}.\hspace{0.1\textwidth}\emph{(gauche)} PCA sur modèle 30D \emph{(droite)} modèle 2D}
+\includegraphics<1->[width=0.45\textwidth]{fig/WordPlot.png}
+\includegraphics<2>[width=0.45\textwidth]{fig/NewModelPCA.png}
+\includegraphics<3>[width=0.45\textwidth]{fig/model2d.png}
+\caption{\only<1>{PCA 2D du modèle de Socher}\only<2>{PCA de la représentation des mots en dimension 2. \hspace{\textwidth}.\hspace{0.1\textwidth}\emph{(gauche)} Socher 30D \emph{(droite)} Le nôtre 30D}\only<3>{Socher 30D \emph{(droite)} Le nôtre 2D}}
 \end{figure}
 
 \end{frame}
 %------------------------------------------------
 
 \begin{frame}
-\frametitle{Representation apprise - N-grams}
+\frametitle{Représentations apprises - N-grams}
 \begin{figure}[htp]
 \centering
 \includegraphics[scale=0.2]{fig/n_gram.png}
-\caption[caption]{PCA de la representation des mots en dimension 2 pour le modèle 30d}
+\caption[caption]{PCA de la représentation des mots en dimension 2 pour le modèle 30d}
 \end{figure}
-
 \end{frame}
 
 %------------------------------------------------
 
-\section{Auto encoder}
+\section{Auto encodeur}
 \begin{frame}
-\frametitle{Auto encoder?}
+\frametitle{Auto encodeur?}
 \begin{itemize}
-\item L'idée est que l'on combine mal les représentations.
-\item Auto encoder optimize la reconstruction\\
-$\Rightarrow$ Meilleur prise en compte de l'information?
+\item Idée : les figures précédentes suggère que l'on recombine mal les représentations.
+\item Auto-encodeur optimise la reconstruction et peut espérer conserver la structure \\
+$\Rightarrow$ Meilleure transmission de l'information ?
 \item L'idée du modèle est
 \begin{figure}[htp]
 \centering
