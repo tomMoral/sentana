@@ -110,7 +110,7 @@ class RNN(object):
         #return self.Ws.dot(pT.X) -> Pas besoin de retourner le lbel, il faut le maj aussi?
         return errorVal
 
-    def backward_pass(self, X_tree, w_root=1):
+    def backward_pass(self, X_tree, root=False):
         '''
         Retourne le gradient du a l'erreur commise sur l'arbre X_tree
         Attention: suppose la forward_pass faite
@@ -123,9 +123,7 @@ class RNN(object):
 
         #Initialise les deltas
         for n in X_tree.nodes:
-            n.d = self.Ws.T.dot(n.ypred-n.y)*w_root
-
-        n.d = self.Ws.T.dot(n.ypred-n.y)*(1-w_root)
+            n.d = self.Ws.T.dot(n.ypred-n.y)
 
         #Descend dans l arbre
         for p, [a, b] in X_tree.parcours[::-1]:
@@ -158,7 +156,7 @@ class RNN(object):
 
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
               warm_start=True, r=0.0001, max_iter=1000, val_set=[],
-              n_check=100, strat='AdaGrad', w_root=1,
+              n_check=100, strat='AdaGrad',
               bin=False, reset_freq=-1, save_tmp='tmp.pkl', n_stop=4):
         '''
         Training avec AdaGrad (Dutchi et al.), prends en entrée une liste d'arbres X_trees
@@ -169,22 +167,19 @@ class RNN(object):
             #Initiate V, the tensor operator
             self.V = np.random.uniform(-r, r, size=(dim, 2*dim, 2*dim))
             self.V = (self.V+np.transpose(self.V, axes=[0, 2, 1]))/2
-
+    
             #Initiate W, the linear operator
             self.W = np.random.uniform(-r, r, size=(dim, 2*dim))
-
+    
             #Initiate Ws, the linear operator
             self.Ws = np.random.uniform(-r, r, size=(2, dim))
-
+    
             #Initiate L, the Lexicon representation
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
 
         #Liste pour erreurs
-        self.errMB = []
-        self.errVal = []
-        errMB = self.errMB
-        errVal = self.errVal
-
+        errMB = []
+        errVal = []
         #Condition d'arret
         n_iter = 1
         gradNorm = 1.0
@@ -239,7 +234,7 @@ class RNN(object):
             currentMbe = 0.0
             for X_tree in mini_batch_samples:
                 currentMbe += self.forward_pass(X_tree)
-                dWs, dV, dW, dL = self.backward_pass(X_tree, w_root=w_root)
+                dWs, dV, dW, dL = self.backward_pass(X_tree)
                 dWsCurrent += dWs
                 dVCurrent += dV
                 dWCurrent += dW
@@ -364,25 +359,7 @@ class RNN(object):
             scRoot += (Tree.Tree.getSoftLabel(n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
         return scAll/countAll, scRoot/countRoot
 
-    def score_eps(self, X_trees, eps):
-        '''
-        Score sur les predictions MAP avec 5 label
-        '''
-        countAll = 0
-        countRoot = 0
-        scAll = 0.0
-        scRoot = 0.0
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                countAll += 1
-                scAll += (abs(n.ypred[1] - n.y[1]) <= eps)
-            countRoot += 1
-            n = X_tree.nodes[-1]
-            scRoot += (abs(n.ypred[1] - n.y[1]) <= eps)
-        return scAll/countAll, scRoot/countRoot
-
-    def score_binary(self, X_trees, inc_neut=False):
+    def score_binary(self, X_trees,inc_neut=False):
         '''
         Score sur les prediction MAP pos/neg
         '''
@@ -393,15 +370,11 @@ class RNN(object):
         for X_tree in X_trees:
             self.forward_pass(X_tree)
             for n in X_tree.nodes:
-                countAll += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-                scAll += ((n.ypred[1] <= 0.5 and n.y[1] <= 0.5) or
-                          (n.ypred[1] > 0.5 and n.y[1] > 0.5)) *\
-                         (inc_neut or not (0.4 < n.y[1] <= 0.6))
+                countAll += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6)) 
+                scAll += ((n.ypred[1]<=0.5 and n.y[1]<=0.5) or (n.ypred[1]>0.5 and n.y[1]>0.5)) * (inc_neut or not (0.4 < n.y[1] <= 0.6))  
             n = X_tree.nodes[-1]
-            countRoot += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-            scRoot += ((n.ypred[1] <= 0.5 and n.y[1] <= 0.5) or
-                      (n.ypred[1] > 0.5 and n.y[1] > 0.5)) *\
-                      (inc_neut or not (0.4 < n.y[1] <= 0.6))
+            countRoot += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6)) 
+            scRoot += (n.ypred[1]<=0.5 and n.y[1]<=0.5) or (n.ypred[1]>0.5 and n.y[1]>0.5) * (inc_neut or not (0.4 < n.y[1] <= 0.6))  
         return scAll/countAll, scRoot/countRoot
 
     def check_derivative(self, X_tree, eps=1e-6):
@@ -433,44 +406,24 @@ class RNN(object):
             for n in tree.nodes:
                 lp = Tree.Tree.getSoftLabel(n.ypred[1])
                 l = Tree.Tree.getSoftLabel(n.y[1])
-                confAll[l, lp] += 1
+                confAll[l,lp] += 1
             lp = Tree.Tree.getSoftLabel(tree.nodes[-1].ypred[1])
             l = Tree.Tree.getSoftLabel(tree.nodes[-1].y[1])
-            confRoot[l, lp] += 1
+            confRoot[l,lp]+=1
         for lp in range(5):
-            confAll[lp, :] /= np.sum(confAll[lp, :])
-            confRoot[lp, :] /= np.sum(confRoot[lp, :])
-        return confAll, confRoot
+            confAll[lp,:]/=np.sum(confAll[lp,:])
+            confRoot[lp,:]/=np.sum(confRoot[lp,:])
+        return confAll,confRoot
 
-    def plot_words_2D(self, labels, N=-1):
+    def plot_words_2D(self,labels):
         from sklearn.decomposition import PCA
         import matplotlib.pyplot as plt
         import matplotlib.cm as cm
-
-        if N == -1:
-            N = self.L.shape[0]
-
-        pca = PCA(n_components=2)
-        X = pca.fit_transform(self.L[:N])
-        revert_vocab = {i: (w, labels[w]) for (w, i) in self.vocab.iteritems()}
-        y = np.zeros(N)
-        for i in range(N):
-            _, y[i] = revert_vocab[i]
-        plt.scatter(X[:, 0], X[:, 1], c=y, cmap=cm.jet)
-
-    def plot_eps_curve(self, X, n_pts):
-        import matplotlib.pyplot as plt
-
-        eps = np.logspace(-3, 0, n_pts)
-        curve_r = []
-        curve_a = []
-        for e in eps:
-            a, r = self.score_eps(X, e)
-            curve_r.append(r)
-            curve_a.append(a)
-
-        plt.semilogx(eps, curve_a)
-        plt.semilogx(eps, curve_r)
-        plt.show()
-
-        return curve_a, curve_r
+        pca=PCA(n_components=2)
+        X=pca.fit_transform(self.L)
+        revert_vocab={i:(w,labels[w]) for (w,i) in self.vocab.iteritems()}
+        y=np.zeros(self.L.shape[0])
+        for i in range(self.L.shape[0]):
+            _,y[i]=revert_vocab[i]
+        plt.scatter(X[:,0],X[:,1],c=y,cmap=cm.jet)
+        
