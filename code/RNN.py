@@ -167,13 +167,13 @@ class RNN(object):
             #Initiate V, the tensor operator
             self.V = np.random.uniform(-r, r, size=(dim, 2*dim, 2*dim))
             self.V = (self.V+np.transpose(self.V, axes=[0, 2, 1]))/2
-    
+
             #Initiate W, the linear operator
             self.W = np.random.uniform(-r, r, size=(dim, 2*dim))
-    
+
             #Initiate Ws, the linear operator
             self.Ws = np.random.uniform(-r, r, size=(2, dim))
-    
+
             #Initiate L, the Lexicon representation
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
 
@@ -359,7 +359,7 @@ class RNN(object):
             scRoot += (Tree.Tree.getSoftLabel(n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
         return scAll/countAll, scRoot/countRoot
 
-    def score_binary(self, X_trees,inc_neut=False):
+    def score_binary(self, X_trees, inc_neut=False):
         '''
         Score sur les prediction MAP pos/neg
         '''
@@ -370,11 +370,15 @@ class RNN(object):
         for X_tree in X_trees:
             self.forward_pass(X_tree)
             for n in X_tree.nodes:
-                countAll += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6)) 
-                scAll += ((n.ypred[1]<=0.5 and n.y[1]<=0.5) or (n.ypred[1]>0.5 and n.y[1]>0.5)) * (inc_neut or not (0.4 < n.y[1] <= 0.6))  
+                countAll += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
+                scAll += ((n.ypred[1] <= 0.5 and n.y[1] <= 0.5) or
+                          (n.ypred[1] > 0.5 and n.y[1] > 0.5)
+                          ) * (inc_neut or not (0.4 < n.y[1] <= 0.6))
             n = X_tree.nodes[-1]
-            countRoot += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6)) 
-            scRoot += (n.ypred[1]<=0.5 and n.y[1]<=0.5) or (n.ypred[1]>0.5 and n.y[1]>0.5) * (inc_neut or not (0.4 < n.y[1] <= 0.6))  
+            countRoot += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
+            scRoot += ((n.ypred[1] <= 0.5 and n.y[1] <= 0.5) or
+                       (n.ypred[1] > 0.5 and n.y[1] > 0.5)
+                       ) * (inc_neut or not (0.4 < n.y[1] <= 0.6))
         return scAll/countAll, scRoot/countRoot
 
     def check_derivative(self, X_tree, eps=1e-6):
