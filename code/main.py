@@ -28,7 +28,8 @@ if __name__ == '__main__':
     parser.add_argument('--save_tmp', type=str, default='tmp.pkl',
                         help='Tmp file save')
     parser.add_argument('--wroot', type=int, default=1,
-                        help='Relative weight of the root compare to the other nodes')
+                        help='Relative weight of the root compared \
+                        to the other nodes')
     parser.add_argument('--rae', action='store_true',
                         help='Use the RAE')
 
@@ -40,19 +41,25 @@ if __name__ == '__main__':
     if args.rae:
         from RAE import RAE
         model = RAE(vocab=lexicon, reg=args.reg)
-        l1, l2 = model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
+        l1, l2 = model.train(X_trees_train,
+                             max_iter=args.iter, val_set=X_trees_dev,
                              strat=args.strat, mini_batch_size=args.mb_size,
-                             reset_freq=args.reset_freq, save_tmp=args.save_tmp,
-                             n_stop=args.n_stop, learning_rate=args.lr,
-                             w_root=args.wroot)
+                             reset_freq=args.reset_freq,
+                             save_tmp=args.save_tmp,
+                             n_stop=args.n_stop,
+                             # w_root=args.wroot,
+                             learning_rate=args.lr)
     else:
         from RNN import RNN
         model = RNN(vocab=lexicon, reg=args.reg)
-        l1, l2 = model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
+        l1, l2 = model.train(X_trees_train,
+                             max_iter=args.iter, val_set=X_trees_dev,
                              strat=args.strat, mini_batch_size=args.mb_size,
-                             reset_freq=args.reset_freq, save_tmp=args.save_tmp,
-                             n_stop=args.n_stop, learning_rate=args.lr,
-                             w_root=args.wroot)
+                             reset_freq=args.reset_freq,
+                             save_tmp=args.save_tmp,
+                             n_stop=args.n_stop,
+                             # w_root=args.wroot,
+                             learning_rate=args.lr)
 
     model.save('../data/exp1')
 

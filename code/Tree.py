@@ -2,8 +2,11 @@
 from Node import Node
 import numpy as np
 
+
 class Tree(object):
+
     """docstring for Tree"""
+
     def __init__(self, sentence, structure, label=None):
         self.sentence = sentence
         self.structure = structure
@@ -13,7 +16,7 @@ class Tree(object):
         self.nodes = []
         self.leaf = []
 
-        for i in range(2*wc-1):
+        for i in range(2 * wc - 1):
             self.nodes.append(Node())
 
         for i, w in enumerate(sentence):
@@ -24,11 +27,11 @@ class Tree(object):
 
         parc = {}
         for i, (n, p) in enumerate(zip(self.nodes, structure)):
-            n.parent = p-1
-            self.nodes[p-1].childrens.append(i)
-            l = parc.get(p-1, [])
+            n.parent = p - 1
+            self.nodes[p - 1].childrens.append(i)
+            l = parc.get(p - 1, [])
             l.append(i)
-            parc[p-1] = l
+            parc[p - 1] = l
         parc.pop(-1)
         self.parcours = parc.items()
         self.parcours.sort()
@@ -37,7 +40,7 @@ class Tree(object):
             for n in self.leaf:
                 n.y = np.zeros(2)
                 n.y[1] = label[n.word]
-                n.y[0] = 1-n.y[1]
+                n.y[0] = 1 - n.y[1]
 
             for p, [a, b] in self.parcours:
                 aT = self.nodes[a]
@@ -49,9 +52,9 @@ class Tree(object):
                     pT.word = ' '.join([bT.word, aT.word])
                 pT.y = np.zeros(2)
                 pT.y[1] = label[pT.word]
-                pT.y[0] = 1-pT.y[1]
+                pT.y[0] = 1 - pT.y[1]
                 pT.order = aT.order
-                
+
     @staticmethod
     def getSoftLabel(l):
         if l <= 0.2:
@@ -65,4 +68,3 @@ class Tree(object):
         else:
             label = 4
         return label
-
