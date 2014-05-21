@@ -4,6 +4,9 @@ DATASET = '../data'
 if __name__ == '__main__':
 
     import argparse
+    import os
+
+    print os.environ['PATH']
 
     parser = argparse.ArgumentParser('Run a RNN sentiment tree analysis'
                                      ' over the stanfor tree bank')
@@ -18,7 +21,7 @@ if __name__ == '__main__':
     parser.add_argument('--reset_freq', type=int, default=-1,
                         help='Frequence of reset for adagrad')
     parser.add_argument('--n_stop', type=int, default=4,
-                        help='Threshold for eraly stopping -1 to avoid ES')
+                        help='Threshold for early stopping -1 to avoid ES')
     parser.add_argument('--reg', type=float, default=1,
                         help='Regularisation factor scaling')
     parser.add_argument('--lr', type=float, default=0.01,
