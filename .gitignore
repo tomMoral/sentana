@@ -1,3 +1,4 @@
 *.pyc
-*.sublime-workspace
 *.pkl
+*.sublime-project
+*.sublime-workspace

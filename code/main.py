@@ -12,8 +12,8 @@ if __name__ == '__main__':
                                      ' over the stanfor tree bank')
     parser.add_argument('--strat', type=str, default='AdaGrad',
                         help='Strategie for the learning. {AdaGrad, Rmsprop}')
-    parser.add_argument('--iter', type=int, default=1000,
-                        help='Nb max d\'iteration {default: 400')
+    parser.add_argument('--epoch', type=int, default=100,
+                        help='Nb max d\'epoch {default: 100')
     parser.add_argument('--bin', action='store_true',
                         help='Perform a binary classification')
     parser.add_argument('--mb_size', type=int, default=27,
@@ -24,9 +24,9 @@ if __name__ == '__main__':
                         help='Threshold for early stopping -1 to avoid ES')
     parser.add_argument('--reg', type=float, default=1,
                         help='Regularisation factor scaling')
+    parser.add_argument('--n_check', type=float, default=8,
+                        help='Frequence of checking early stopping')
     parser.add_argument('--lr', type=float, default=0.01,
-                        help='Learning rate')
-    parser.add_argument('--n_check', type=float, default=50,
                         help='Learning rate')
     parser.add_argument('--save_tmp', type=str, default='tmp.pkl',
                         help='Tmp file save')
@@ -45,23 +45,27 @@ if __name__ == '__main__':
         from RAE import RAE
         model = RAE(vocab=lexicon, reg=args.reg)
         l1, l2 = model.train(X_trees_train,
-                             max_iter=args.iter, val_set=X_trees_dev,
-                             strat=args.strat, mini_batch_size=args.mb_size,
+                             max_epoch=args.epoch,
+                             val_set=X_trees_dev,
+                             strat=args.strat,
+                             mini_batch_size=args.mb_size,
                              reset_freq=args.reset_freq,
                              save_tmp=args.save_tmp,
                              n_stop=args.n_stop,
-                             # w_root=args.wroot,
+                             w_root=args.wroot,
                              learning_rate=args.lr)
     else:
         from RNN import RNN
         model = RNN(vocab=lexicon, reg=args.reg)
         l1, l2 = model.train(X_trees_train,
-                             max_iter=args.iter, val_set=X_trees_dev,
-                             strat=args.strat, mini_batch_size=args.mb_size,
+                             max_epoch=args.epoch,
+                             val_set=X_trees_dev,
+                             strat=args.strat,
+                             mini_batch_size=args.mb_size,
                              reset_freq=args.reset_freq,
                              save_tmp=args.save_tmp,
                              n_stop=args.n_stop,
-                             # w_root=args.wroot,
+                             #w_root=args.wroot,
                              learning_rate=args.lr)
 
     model.save('../data/exp1')

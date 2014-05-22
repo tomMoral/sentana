@@ -219,7 +219,7 @@ class RAE(object):
         return grad
 
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
-              warm_start=True, r=0.0001, max_iter=1000, val_set=[],
+              warm_start=True, r=0.0001, max_epoch=1000, val_set=[],
               n_check=100, strat='AdaGrad', w_root=1,
               bin=False, reset_freq=-1, save_tmp='tmp.pkl', n_stop=4):
         '''
@@ -261,7 +261,7 @@ class RAE(object):
         errVal = self.errVal
 
         # Condition d'arret
-        n_iter = 1
+        n_epoch = 1
         gradNorm = 1.0
         if val_set != []:
             prevError = self.error(val_set) / len(val_set)
@@ -285,9 +285,9 @@ class RAE(object):
             dPrev[k] = np.zeros(sh)
 
         early_stop = False
-        while (not early_stop) and n_iter < max_iter:  # Critere moins random
+        while (not early_stop) and n_epoch < max_epoch:  # Critere moins random
             # Remise a zero des rates cf Socher
-            if n_iter % reset_freq == 0 and reset_freq > 0:
+            if n_epoch % reset_freq == 0 and reset_freq > 0:
                 for k in self.params.keys():
                     dHist[k] = np.zeros(self.params[k].shape)
 
@@ -345,7 +345,7 @@ class RAE(object):
                 self.params[k] -= dCurrent[k]
 
             # Maj de la condition d'arret
-            if val_set != [] and (n_iter % n_check) == 0:
+            if val_set != [] and (n_epoch % n_check) == 0:
                 currentError = self.error(val_set)
                 for k in self.params.keys():
                     currentError += self.reg[
@@ -353,12 +353,12 @@ class RAE(object):
 
                 errVal.append(currentError)
                 errMB.append(currentMbe)
-                print('Error on validation set at iter {0} : {1} '
+                print('Error on validation set at epoch {0} : {1} '
                       '(previous : {2})'
-                      .format(n_iter, currentError, prevError))
-                print('Error on mini batch at iter {0} : {1} '
+                      .format(n_epoch, currentError, prevError))
+                print('Error on mini batch at epoch {0} : {1} '
                       '(Gradient norm : {2})'
-                      .format(n_iter, currentMbe, gradNorm))
+                      .format(n_epoch, currentMbe, gradNorm))
 
                 with open(save_tmp, 'wb') as output:
                     pickle.dump(errVal, output, -1)
@@ -375,18 +375,18 @@ class RAE(object):
                 early_stop = (upStop >= n_stop) and (n_stop > 0)
                 prevError = currentError
             else:
-                print('Error on mini batch at iter {0} : {1} '
+                print('Error on mini batch at epoch {0} : {1} '
                       '(Gradient norm : {2})'.
-                      format(n_iter, currentMbe, gradNorm))
+                      format(n_epoch, currentMbe, gradNorm))
                 errMB.append(currentMbe)
 
-            # Maj iter
-            n_iter += 1
+            # Maj epoch
+            n_epoch += 1
 
         if val_set != []:
             print('Error on training set before and after training'
-                  '({2} iter) : {0}->{1}\n'.
-                  format(iniError, currentError, n_iter))
+                  '({2} epoch) : {0}->{1}\n'.
+                  format(iniError, currentError, n_epoch))
             print('Generalization error : {0}'.format(glError))
         return errMB, errVal
 
