@@ -30,6 +30,8 @@ if __name__ == '__main__':
                         help='Learning rate')
     parser.add_argument('--save_tmp', type=str, default='tmp.pkl',
                         help='Tmp file save')
+    parser.add_argument('--model_dump', type=str, default='model/model',
+                        help='Where to dump the succesives model of the NN')
     parser.add_argument('--wroot', type=int, default=1,
                         help='Relative weight of the root compared \
                         to the other nodes')
@@ -65,7 +67,7 @@ if __name__ == '__main__':
                              reset_freq=args.reset_freq,
                              save_tmp=args.save_tmp,
                              n_stop=args.n_stop,
-                             #w_root=args.wroot,
+                             modelPath=args.model_dump,
                              learning_rate=args.lr)
 
     model.save('../data/exp1')

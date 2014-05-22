@@ -169,7 +169,9 @@ class RNN(object):
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
               warm_start=True, r=0.0001, max_epoch=1000, val_set=[],
               n_check=8, strat='AdaGrad',
-              bin=False, reset_freq=-1, save_tmp='tmp.pkl', n_stop=4):
+              bin=False, reset_freq=-1,
+              modelPath='model/model',
+              save_tmp='tmp.pkl', n_stop=4):
         '''
         Training avec AdaGrad (Dutchi et al.),
         prends en entrée une liste d'arbres X_trees
@@ -350,8 +352,9 @@ class RNN(object):
                 self.L -= dLCurrent
 
                 if k % 10 == 0:
-                    print "Epoch %i, mini batch %i, error : %.4f" \
-                        % (n_epoch, k, currentMbe)
+                    print "Epoch %i, mini batch %i, error : %.4f, gradient norm : %.4f" \
+                        % (n_epoch, k, currentMbe, gradNorm)
+                    errMB.append(currentMbe)
 
             print "End of epoch %i." % n_epoch
 
@@ -360,12 +363,12 @@ class RNN(object):
             regularisationCost += self.regV * np.sum(self.V * self.V) / 2.0
             regularisationCost += self.regL * np.sum(self.L * self.L) / 2.0
 
-            currentTrainingError = self.error(X_trees)
-            currentTrainingError += regularisationCost
-            errMB.append(currentTrainingError)
-            print('Error on training set at epoch {0} : {1} '
-                  '(Gradient norm : {2})'
-                  .format(n_epoch, currentTrainingError, gradNorm))
+            ## Too slow to be evaluated at each epoch
+            # currentTrainingError = self.error(X_trees)
+            # currentTrainingError += regularisationCost
+            # print('Error on training set at epoch {0} : {1} '
+            #       '(Gradient norm : {2})'
+            #       .format(n_epoch, currentTrainingError, gradNorm))
 
             # Maj de la condition d'arret
             if val_set != [] and (n_epoch % n_check) == 0:
@@ -381,6 +384,8 @@ class RNN(object):
                 with open(save_tmp, 'wb') as output:
                     pickle.dump(errVal, output, -1)
                     pickle.dump(errMB, output, -1)
+
+                self.save(modelPath + "-%i.pkl" % n_epoch)
 
                 # Early stopping
                 minError = min(minError, currentError)
