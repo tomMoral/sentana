@@ -20,23 +20,23 @@ class RAE(object):
     def __init__(self, vocab={}, dim=30, r=0.0001, reg=1):
         self.dim = dim
 
-        # Initiate V, the tensor operator
+        # Initiate V, the encoder tensor
         self.V = np.random.uniform(
             -r, r, size=(dim + 1, 2 * dim + 2, 2 * dim + 2))
         self.V = (self.V + np.transpose(self.V, axes=[0, 2, 1])) / 2
 
-        # Initiate W, the linear operator
+        # Initiate W, the encoder matrix
         self.W = np.random.uniform(-r, r, size=(dim + 1, 2 * dim + 2))
 
-        # Initiate Ws, the linear operator
+        # Initiate Ws, the sentiment matrix
         self.Ws = np.random.uniform(-r, r, size=(2, dim + 1))
 
-        # Initiate VE, the encoder tensor
+        # Initiate Ve, the decoder tensor
         self.Ve = np.random.uniform(
             -r, r, size=(2 * dim + 2, dim + 1, dim + 1))
         self.Ve = (self.Ve + np.transpose(self.Ve, axes=[0, 2, 1])) / 2
 
-        # Initiate VE, the encoder tensor
+        # Initiate We, the decoder matrix
         self.We = np.random.uniform(-r, r, size=(2 * dim + 2, dim + 1))
 
         # Initiate L, the Lexicon representation
@@ -116,7 +116,7 @@ class RAE(object):
             # Recupere pour chaque triplet parent,enfant1/2 les noeuds
             bT = X_tree.nodes[b]
             pT = X_tree.nodes[p]
-            if aT.order < bT.order:
+            if aT.order < bT.order:  # Si aT est le noeud de gauche
                 X = np.append(aT.X, bT.X)
             else:
                 X = np.append(bT.X, aT.X)
@@ -284,6 +284,7 @@ class RAE(object):
             dMask[k] = np.ones(sh)
             dPrev[k] = np.zeros(sh)
 
+        # TODO train by epoch
         early_stop = False
         while (not early_stop) and n_epoch < max_epoch:  # Critere moins random
             # Remise a zero des rates cf Socher

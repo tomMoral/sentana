@@ -94,6 +94,7 @@ class RNN(object):
             n.X = self.L[self.vocab[n.word]]
             n.ypred = self.y(n.X)  # Mise a jour du label predit
             n.ypred += 1e-300 * (n.ypred == 0)
+            print n.ypred, n.y
             assert (n.ypred != 0).all()
             errorVal += -np.sum(n.y * np.log(n.ypred))
 
@@ -133,12 +134,12 @@ class RNN(object):
 
         # Descend dans l arbre
         for p, [a, b] in X_tree.parcours[::-1]:
-            aT = X_tree.nodes[a]  #
             # Recupere pour chaque triplet parent,enfant1/2 les noeuds
+            aT = X_tree.nodes[a]
             bT = X_tree.nodes[b]
             pT = X_tree.nodes[p]
-            gX = self.grad(pT.X)
             # Propagation des erreurs vers le bas
+            gX = self.grad(pT.X)
             if aT.order < bT.order:  # Si aT est le noeud de gauche
                 X = np.append(aT.X, bT.X)
                 ddown = (
@@ -170,6 +171,7 @@ class RNN(object):
               warm_start=True, r=0.0001, max_epoch=1000, val_set=[],
               n_check=8, strat='AdaGrad',
               bin=False, reset_freq=-1,
+
               modelPath='model/model',
               save_tmp='tmp.pkl', n_stop=4):
         '''
@@ -358,28 +360,24 @@ class RNN(object):
 
             print "End of epoch %i." % n_epoch
 
-            regularisationCost = self.regWs * np.sum(self.Ws * self.Ws) / 2.0
-            regularisationCost += self.regW * np.sum(self.W * self.W) / 2.0
-            regularisationCost += self.regV * np.sum(self.V * self.V) / 2.0
-            regularisationCost += self.regL * np.sum(self.L * self.L) / 2.0
-
-            ## Too slow to be evaluated at each epoch
-            # currentTrainingError = self.error(X_trees)
-            # currentTrainingError += regularisationCost
-            # print('Error on training set at epoch {0} : {1} '
-            #       '(Gradient norm : {2})'
-            #       .format(n_epoch, currentTrainingError, gradNorm))
-
             # Maj de la condition d'arret
             if val_set != [] and (n_epoch % n_check) == 0:
 
                 currentError = self.error(val_set)
-                currentError += regularisationCost
+
+                regularisationCost = self.regWs * np.sum(self.Ws * self.Ws) / 2.0
+                regularisationCost += self.regW * np.sum(self.W * self.W) / 2.0
+                regularisationCost += self.regV * np.sum(self.V * self.V) / 2.0
+                regularisationCost += self.regL * np.sum(self.L * self.L) / 2.0
 
                 errVal.append(currentError)
-                print('Error on validation set at epoch {0} : {1} '
-                      '(previous : {2})'
-                      .format(n_epoch, currentError, prevError))
+                print('Error+regularisation cost, on validation set at epoch {0} : '
+                      '{1} + {2} | (previous : {3})'
+                      .format(n_epoch, currentError, regularisationCost, prevError))
+
+                currentError += regularisationCost
+
+                self.printPerformanceSummary(val_set)
 
                 with open(save_tmp, 'wb') as output:
                     pickle.dump(errVal, output, -1)
@@ -407,6 +405,13 @@ class RNN(object):
                   .format(iniError, currentError, n_epoch))
             print('Generalization error : {0}'.format(glError))
         return errMB, errVal
+
+    def printPerformanceSummary(self, X_trees):
+        sa, sr = self.score_fine(X_trees)
+        sa_bin, sr_bin = self.score_binary(X_trees)
+        print 'Fine grain\tBinary'
+        print 'Overall\t\t{:.3}\t{:.3}'.format(sa, sa_bin)
+        print 'Root\t\t{:.3}\t{:.3}'.format(sr, sr_bin)
 
     def score_fine(self, X_trees):
         '''
