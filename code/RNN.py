@@ -94,7 +94,6 @@ class RNN(object):
             n.X = self.L[self.vocab[n.word]]
             n.ypred = self.y(n.X)  # Mise a jour du label predit
             n.ypred += 1e-300 * (n.ypred == 0)
-            print n.ypred, n.y
             assert (n.ypred != 0).all()
             errorVal += -np.sum(n.y * np.log(n.ypred))
 
@@ -168,7 +167,7 @@ class RNN(object):
 
     #TODO use the w_root argument ??
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
-              warm_start=True, r=0.0001, max_epoch=1000, val_set=[],
+              warm_start=False, r=0.0001, max_epoch=1000, val_set=[],
               n_check=8, strat='AdaGrad',
               bin=False, reset_freq=-1,
 
@@ -180,6 +179,7 @@ class RNN(object):
         '''
         # Remise à zero du modele
         if not warm_start:
+            print 'reseting the RNN'
             dim = self.dim
             # Initiate V, the tensor operator
             self.V = np.random.uniform(-r, r, size=(dim, 2 * dim, 2 * dim))
@@ -194,6 +194,9 @@ class RNN(object):
             # Initiate L, the Lexicon representation
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
 
+        self.printPerformanceSummary(val_set)
+        self.printConfusion_matrix(val_set)
+        
         # Liste pour erreurs
         errMB = []
         errVal = []
@@ -372,12 +375,13 @@ class RNN(object):
 
                 errVal.append(currentError)
                 print('Error+regularisation cost, on validation set at epoch {0} : '
-                      '{1} + {2} | (previous : {3})'
+                      '{1} + {2} | (previous : {3})'
                       .format(n_epoch, currentError, regularisationCost, prevError))
 
                 currentError += regularisationCost
 
                 self.printPerformanceSummary(val_set)
+                self.printConfusion_matrix(val_set)
 
                 with open(save_tmp, 'wb') as output:
                     pickle.dump(errVal, output, -1)
@@ -455,6 +459,24 @@ class RNN(object):
                        ) * (inc_neut or not (0.4 < n.y[1] <= 0.6))
         return scAll / countAll, scRoot / countRoot
 
+    def printConfusion_matrix(self, X_trees):
+        confusionNode = np.zeros((5, 5))
+        confusionRoot = np.zeros((5, 5))
+        for X_tree in X_trees:
+            self.forward_pass(X_tree)
+            for n in X_tree.nodes:
+                gold_label = Tree.Tree.getSoftLabel(n.y[1])
+                predicted_label = Tree.Tree.getSoftLabel(n.ypred[1])
+                confusionNode[gold_label, predicted_label] += 1
+
+            gold_label = Tree.Tree.getSoftLabel(n.y[1])
+            predicted_label = Tree.Tree.getSoftLabel(n.ypred[1])
+            confusionRoot[gold_label, predicted_label] += 1
+        print 'confusion on root'
+        print confusionRoot
+        print 'confusion on nodes'
+        print confusionNode
+    
     def check_derivative(self, X_tree, eps=1e-6):
         '''
         Fait une compaaison dérivee / differences finies
