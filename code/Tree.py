@@ -7,7 +7,9 @@ class Tree(object):
 
     """docstring for Tree"""
 
-    def __init__(self, sentence, structure, label=None):
+    def __init__(self, sentence, structure, label=None,
+                 rll=False,
+                 rml=False):
         self.sentence = sentence
         self.structure = structure
 
@@ -37,11 +39,6 @@ class Tree(object):
         self.parcours.sort()
 
         if label is not None:
-            for n in self.leaf:
-                n.y = np.zeros(2)
-                n.y[1] = label[n.word]
-                n.y[0] = 1 - n.y[1]
-
             for p, [a, b] in self.parcours:
                 aT = self.nodes[a]
                 bT = self.nodes[b]
@@ -53,18 +50,13 @@ class Tree(object):
                 pT.y = np.zeros(2)
                 pT.y[1] = label[pT.word]
                 pT.y[0] = 1 - pT.y[1]
+                if rml:
+                    aT.y = None
+                    bT.y = None
                 pT.order = aT.order
 
-    @staticmethod
-    def getSoftLabel(l):
-        if l <= 0.2:
-            label = 0
-        elif 0.2 < l <= 0.4:
-            label = 1
-        elif 0.4 < l <= 0.6:
-            label = 2
-        elif 0.6 < l <= 0.8:
-            label = 3
-        else:
-            label = 4
-        return label
+            if not rll:
+                for n in self.leaf:
+                    n.y = np.zeros(2)
+                    n.y[1] = label[n.word]
+                    n.y[0] = 1 - n.y[1]

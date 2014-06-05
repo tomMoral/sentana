@@ -1,7 +1,8 @@
 # -*- coding: utf8 -*-
 import numpy as np
 import pickle
-import Tree
+from itertools import ifilter
+from Node import Node
 
 
 class RNN(object):
@@ -95,11 +96,11 @@ class RNN(object):
             n.ypred = self.y(n.X)  # Mise a jour du label predit
             n.ypred += 1e-300 * (n.ypred == 0)
             assert (n.ypred != 0).all()
-            errorVal += -np.sum(n.y * np.log(n.ypred))
+            errorVal += n.cost()
 
         for p, [a, b] in X_tree.parcours:
-            aT = X_tree.nodes[a]  #
             # Recupere pour chaque triplet parent,enfant1/2 les noeuds
+            aT = X_tree.nodes[a]
             bT = X_tree.nodes[b]
             pT = X_tree.nodes[p]
             if aT.order < bT.order:
@@ -109,7 +110,7 @@ class RNN(object):
             pT.X = self.f(X)  # Mise a jour du decripteur du parent
             pT.ypred = self.y(pT.X)  # Mise a jour du label predit
             pT.ypred += 1e-300 * (pT.ypred == 0)
-            errorVal += -np.sum(pT.y * np.log(pT.ypred))
+            errorVal += pT.cost()
         #E = sum([(self.y(n.X) - n.y) for n in X_tree.nodes])
         # print E
         # return self.Ws.dot(pT.X) -> Pas besoin de retourner le lbel, il faut
@@ -195,8 +196,8 @@ class RNN(object):
             self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
 
         self.printPerformanceSummary(val_set)
-        self.printConfusion_matrix(val_set)
-        
+        self.print_confusion_matrix(val_set)
+
         # Liste pour erreurs
         errMB = []
         errVal = []
@@ -381,7 +382,7 @@ class RNN(object):
                 currentError += regularisationCost
 
                 self.printPerformanceSummary(val_set)
-                self.printConfusion_matrix(val_set)
+                self.print_confusion_matrix(val_set)
 
                 with open(save_tmp, 'wb') as output:
                     pickle.dump(errVal, output, -1)
@@ -416,6 +417,7 @@ class RNN(object):
         print 'Fine grain\tBinary'
         print 'Overall\t\t{:.3}\t{:.3}'.format(sa, sa_bin)
         print 'Root\t\t{:.3}\t{:.3}'.format(sr, sr_bin)
+        self.print_layers_norm()
 
     def score_fine(self, X_trees):
         '''
@@ -428,13 +430,11 @@ class RNN(object):
         for X_tree in X_trees:
             self.forward_pass(X_tree)
             for n in X_tree.nodes:
-                countAll += 1
-                scAll += (Tree.Tree.getSoftLabel(
-                    n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
-            countRoot += 1
+                countAll += n.have_label()
+                scAll += n.score_fine()
             n = X_tree.nodes[-1]
-            scRoot += (Tree.Tree.getSoftLabel(
-                n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
+            countRoot += n.have_label()
+            scRoot += n.score_fine()
         return scAll / countAll, scRoot / countRoot
 
     def score_binary(self, X_trees, inc_neut=False):
@@ -447,36 +447,16 @@ class RNN(object):
         scRoot = 0.0
         for X_tree in X_trees:
             self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                countAll += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-                scAll += ((n.ypred[1] <= 0.5 and n.y[1] <= 0.5) or
-                          (n.ypred[1] > 0.5 and n.y[1] > 0.5)
-                          ) * (inc_neut or not (0.4 < n.y[1] <= 0.6))
+            for n in ifilter(Node.have_label, X_tree.nodes):
+                if n.have_label():
+                    countAll += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
+                    scAll += n.score_binary(inc_neut)
             n = X_tree.nodes[-1]
-            countRoot += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-            scRoot += ((n.ypred[1] <= 0.5 and n.y[1] <= 0.5) or
-                       (n.ypred[1] > 0.5 and n.y[1] > 0.5)
-                       ) * (inc_neut or not (0.4 < n.y[1] <= 0.6))
+            if n.have_label():
+                countRoot += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
+                scRoot += n.score_binary(inc_neut)
         return scAll / countAll, scRoot / countRoot
 
-    def printConfusion_matrix(self, X_trees):
-        confusionNode = np.zeros((5, 5))
-        confusionRoot = np.zeros((5, 5))
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                gold_label = Tree.Tree.getSoftLabel(n.y[1])
-                predicted_label = Tree.Tree.getSoftLabel(n.ypred[1])
-                confusionNode[gold_label, predicted_label] += 1
-
-            gold_label = Tree.Tree.getSoftLabel(n.y[1])
-            predicted_label = Tree.Tree.getSoftLabel(n.ypred[1])
-            confusionRoot[gold_label, predicted_label] += 1
-        print 'confusion on root'
-        print confusionRoot
-        print 'confusion on nodes'
-        print confusionNode
-    
     def check_derivative(self, X_tree, eps=1e-6):
         '''
         Fait une compaaison dérivee / differences finies
@@ -504,17 +484,32 @@ class RNN(object):
         confAll = np.zeros((5, 5))
         confRoot = np.zeros((5, 5))
         for tree in X_trees:
-            for n in tree.nodes:
-                lp = Tree.Tree.getSoftLabel(n.ypred[1])
-                l = Tree.Tree.getSoftLabel(n.y[1])
+            for n in ifilter(Node.have_label, tree.nodes):
+                lp = Node.getSoftLabel(n.ypred[1])
+                l = Node.getSoftLabel(n.y[1])
                 confAll[l, lp] += 1
-            lp = Tree.Tree.getSoftLabel(tree.nodes[-1].ypred[1])
-            l = Tree.Tree.getSoftLabel(tree.nodes[-1].y[1])
-            confRoot[l, lp] += 1
-        for lp in range(5):
-            confAll[lp, :] /= np.sum(confAll[lp, :])
-            confRoot[lp, :] /= np.sum(confRoot[lp, :])
+            if tree.nodes[-1].have_label():
+                lp = Node.getSoftLabel(tree.nodes[-1].ypred[1])
+                l = Node.getSoftLabel(tree.nodes[-1].y[1])
+                confRoot[l, lp] += 1
+        # for lp in range(5):
+        #     confAll[lp, :] /= np.sum(confAll[lp, :])
+        #     confRoot[lp, :] /= np.sum(confRoot[lp, :])
         return confAll, confRoot
+
+    def print_confusion_matrix(self, X_trees):
+        confAll, confRoot = self.confusion_matrix(X_trees)
+        print 'confusion on root'
+        print confRoot
+        print 'confusion on nodes'
+        print confAll
+
+    def print_layers_norm(self):
+        norm = lambda W: np.linalg.norm(W) / W.size
+        print "tensor norm: %f, max: %f" % (norm(self.V), np.max(self.V))
+        print "combinator norm: %f, max: %f" % (norm(self.W), np.max(self.W))
+        print "sentiment norm: %f, max: %f" % (norm(self.Ws), np.max(self.Ws))
+        print "lexicon norm: %f, max: %f" % (norm(self.L), np.max(self.L))
 
     def plot_words_2D(self, labels):
         from sklearn.decomposition import PCA
@@ -529,7 +524,8 @@ class RNN(object):
         plt.scatter(X[:, 0], X[:, 1], c=y, cmap=cm.jet)
 
     def score_eps(self, X_trees, eps):
-        '''Score sur les predictions MAP avec 5 label
+        '''
+        Score sur les predictions MAP avec 5 label
         '''
         countAll = 0
         countRoot = 0
@@ -538,9 +534,9 @@ class RNN(object):
         for X_tree in X_trees:
             self.forward_pass(X_tree)
             for n in X_tree.nodes:
-                countAll += 1
-                scAll += (abs(n.ypred[1] - n.y[1]) <= eps)
-            countRoot += 1
+                countAll += n.have_label()
+                scAll += n.score_eps(eps)
             n = X_tree.nodes[-1]
-            scRoot += (abs(n.ypred[1] - n.y[1]) <= eps)
+            countRoot += n.have_label()
+            scRoot += n.score_eps(eps)
         return scAll / countAll, scRoot / countRoot

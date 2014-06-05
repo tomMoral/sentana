@@ -37,6 +37,10 @@ if __name__ == '__main__':
                         to the other nodes')
     parser.add_argument('--rae', action='store_true',
                         help='Use the RAE')
+    parser.add_argument('--remove_middle', action='store_true',
+                        help='remove middle labels')
+    parser.add_argument('--remove_leaf', action='store_true',
+                        help='remove leaf labels')
 
     args = parser.parse_args()
 
