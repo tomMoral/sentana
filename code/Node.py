@@ -4,7 +4,10 @@ import numpy as np
 
 class Node(object):
     """Class that implement the node of the parsing tree"""
+
     def __init__(self, word=None, label=None):
+        if label < 0:
+            label = None
         self.y = label
         if label is not None:
             self.ypred = np.ones(len(label)) / len(label)
@@ -16,8 +19,17 @@ class Node(object):
         self.childrens = []
         self.d = None  # Vecteur d'erreur
 
+    def set_label(self, label):
+        label = float(label)
+        if label < 0 or label > 1:
+            self.y = None
+        else:
+            self.y = np.zeros(2)
+            self.y[1] = label
+            self.y[0] = 1 - self.y[1]
+
     def have_label(self):
-        return self.y is not None
+        return (self.y is not None)
 
     def cost(self):
         if self.have_label():
@@ -46,9 +58,12 @@ class Node(object):
             return 0
 
     def score_binary(self, inc_neut=False):
-        return ((self.ypred[1] <= 0.5 and self.y[1] <= 0.5) or
-                (self.ypred[1] > 0.5 and self.y[1] > 0.5))\
-            * (inc_neut or not (0.4 < self.y[1] <= 0.6))
+        if self.have_label():
+            return ((self.ypred[1] <= 0.5 and self.y[1] <= 0.5) or
+                    (self.ypred[1] > 0.5 and self.y[1] > 0.5))\
+                * (inc_neut or not (0.4 < self.y[1] <= 0.6))
+        else:
+            return 0
 
     def score_eps(self, eps):
         if self.have_label():

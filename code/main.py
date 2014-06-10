@@ -41,11 +41,12 @@ if __name__ == '__main__':
                         help='remove middle labels')
     parser.add_argument('--remove_leaf', action='store_true',
                         help='remove leaf labels')
+    parser.add_argument('--dataset', type=str, default=DATASET)
 
     args = parser.parse_args()
 
     from load import load
-    lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = load()
+    lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = load(args.dataset)
 
     if args.rae:
         from RAE import RAE

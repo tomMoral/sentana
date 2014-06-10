@@ -3,13 +3,11 @@ from os import path
 
 from Tree import Tree
 
-DATASET = '../data'
 
-
-def load(remove_leaf_label=False,
+def load(dataset, remove_leaf_label=False,
          remove_middle_label=False):
     print 'Load Trees...'
-    with open(path.join(DATASET, 'STree.txt')) as f:
+    with open(path.join(dataset, 'STree.txt')) as f:
         trees = []
         for line in f.readlines():
             tree = line.split('|')
@@ -17,7 +15,7 @@ def load(remove_leaf_label=False,
             trees.append(tree)
 
     print 'Load Sentences...'
-    with open(path.join(DATASET, 'SOStr.txt')) as f:
+    with open(path.join(dataset, 'SOStr.txt')) as f:
         sentences = []
         lexicon = set()
         for line in f.readlines():
@@ -25,22 +23,22 @@ def load(remove_leaf_label=False,
             sentences.append(sent)
             lexicon = lexicon.union(sent)
 
-    print 'Load data split'
-    with open(path.join(DATASET, 'datasetSplit.txt')) as f:
+    print 'Load data split...'
+    with open(path.join(dataset, 'datasetSplit.txt')) as f:
         whichSet = []
         f.readline()
         for line in f.readlines():
             whichSet.append(int(line.strip().split(',')[1]))
 
     print 'Load Index...'
-    with open(path.join(DATASET, 'dictionary.txt')) as f:
+    with open(path.join(dataset, 'dictionary.txt')) as f:
         index = {}
         for line in f.readlines():
             phrase = line.split('|')
             index[int(phrase[1])] = phrase[0]
 
     print 'Load Labels...'
-    with open(path.join(DATASET, 'sentiment_labels.txt')) as f:
+    with open(path.join(dataset, 'sentiment_labels.txt')) as f:
         f.readline()
         labels = {}
         for line in f.readlines():

@@ -96,6 +96,8 @@ class RNN(object):
             n.ypred = self.y(n.X)  # Mise a jour du label predit
             n.ypred += 1e-300 * (n.ypred == 0)
             assert (n.ypred != 0).all()
+            if n.cost() < 0:
+                print "cost: %4f, ypred: %4f, y: %4f" % (n.cost(), n.ypred[1], n.y[1])
             errorVal += n.cost()
 
         for p, [a, b] in X_tree.parcours:
@@ -107,10 +109,12 @@ class RNN(object):
                 X = np.append(aT.X, bT.X)
             else:
                 X = np.append(bT.X, aT.X)
-            pT.X = self.f(X)  # Mise a jour du decripteur du parent
+            pT.X = self.f(X)  # Mise a jour du descripteur du parent
             pT.ypred = self.y(pT.X)  # Mise a jour du label predit
             pT.ypred += 1e-300 * (pT.ypred == 0)
             errorVal += pT.cost()
+            if pT.cost() < 0:
+                print "cost: %4f, ypred: %4f, y: %4f" % (pT.cost(), pT.ypred[1], pT.y[1])
         #E = sum([(self.y(n.X) - n.y) for n in X_tree.nodes])
         # print E
         # return self.Ws.dot(pT.X) -> Pas besoin de retourner le lbel, il faut
@@ -130,7 +134,11 @@ class RNN(object):
 
         # Initialise les deltas
         for n in X_tree.nodes:
-            n.d = self.Ws.T.dot(n.ypred - n.y)
+            #TODO check usefulness
+            if n.have_label():
+                n.d = self.Ws.T.dot(n.ypred - n.y)
+            else:
+                n.d = np.zeros(self.dim)
 
         # Descend dans l arbre
         for p, [a, b] in X_tree.parcours[::-1]:
@@ -155,14 +163,20 @@ class RNN(object):
                 aT.d += ddown[self.dim:]
                 bT.d += ddown[:self.dim]
             # Contribution aux gradients du pT
-            dWs += np.outer(pT.ypred - pT.y, pT.X)
+            if pT.have_label():  # TODO check usefulness
+                if (pT.y is None) or (pT.ypred is None):
+                    print "ypred: %4f, y: %4f" % (pT.ypred[1], pT.y[1])
+                dWs += np.outer(pT.ypred - pT.y, pT.X)
             dV += np.tensordot(pT.d * gX, np.outer(X, X), axes=0)
             dW += np.outer(pT.d * gX, X)
 
         # Contribution des feuilles
         for n in X_tree.leaf:
             dL[self.vocab[n.word]] += n.d
-            dWs += np.outer(n.ypred - n.y, n.X)
+            if n.have_label():  # TODO check usefulness
+                if (n.y is None) or (n.ypred is None):
+                    print "ypred: %4f, y: %4f" % (n.ypred[1], n.y[1])
+                dWs += np.outer(n.ypred - n.y, n.X)
 
         return dWs, dV, dW, dL
 
@@ -240,7 +254,6 @@ class RNN(object):
         learn_by_epoch = True
 
         if learn_by_epoch:
-            ##TODO learn by epoch
             mini_batch_numbers = (n_trees + mini_batch_size - 1) / mini_batch_size
             print "nb of batchs %i, batch size %i"\
                 % (mini_batch_numbers, mini_batch_size)

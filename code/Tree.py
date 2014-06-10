@@ -1,6 +1,5 @@
 # -*- coding: utf8 -*-
 from Node import Node
-import numpy as np
 
 
 class Tree(object):
@@ -47,9 +46,8 @@ class Tree(object):
                     pT.word = ' '.join([aT.word, bT.word])
                 else:
                     pT.word = ' '.join([bT.word, aT.word])
-                pT.y = np.zeros(2)
-                pT.y[1] = label[pT.word]
-                pT.y[0] = 1 - pT.y[1]
+                pT.set_label(label[pT.word])
+
                 if rml:
                     aT.y = None
                     bT.y = None
@@ -57,6 +55,4 @@ class Tree(object):
 
             if not rll:
                 for n in self.leaf:
-                    n.y = np.zeros(2)
-                    n.y[1] = label[n.word]
-                    n.y[0] = 1 - n.y[1]
+                    n.set_label(label[n.word])
