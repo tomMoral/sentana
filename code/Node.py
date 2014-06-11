@@ -20,13 +20,16 @@ class Node(object):
         self.d = None  # Vecteur d'erreur
 
     def set_label(self, label):
-        label = float(label)
-        if label < 0 or label > 1:
+        if label is None:
             self.y = None
         else:
-            self.y = np.zeros(2)
-            self.y[1] = label
-            self.y[0] = 1 - self.y[1]
+            label = float(label)
+            if label < 0 or label > 1:
+                self.y = None
+            else:
+                self.y = np.zeros(2)
+                self.y[1] = label
+                self.y[0] = 1 - self.y[1]
 
     def have_label(self):
         return (self.y is not None)
