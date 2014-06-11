@@ -46,7 +46,7 @@ class Tree(object):
                     pT.word = ' '.join([aT.word, bT.word])
                 else:
                     pT.word = ' '.join([bT.word, aT.word])
-                pT.set_label(label[pT.word])
+                pT.set_label(label.get(pT.word))
 
                 if rml:
                     aT.y = None
@@ -55,4 +55,4 @@ class Tree(object):
 
             if not rll:
                 for n in self.leaf:
-                    n.set_label(label[n.word])
+                    n.set_label(label.get(n.word))
