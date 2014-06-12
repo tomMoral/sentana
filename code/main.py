@@ -46,7 +46,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     from load import load
-    lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = load(args.dataset)
+    lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = \
+        load(args.dataset,
+             remove_middle_label=args.remove_middle,
+             remove_leaf_label=args.remove_leaf)
 
     if args.rae:
         from RAE import RAE
