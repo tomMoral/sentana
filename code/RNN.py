@@ -21,6 +21,8 @@ class RNN(object):
     def __init__(self, vocab={}, dim=30, r=0.0001, reg=1):
         self.dim = dim
 
+        # TODO improve initialisation
+        # TODO add bias
         # Initiate V, the tensor operator
         self.V = np.random.uniform(-r, r, size=(dim, 2 * dim, 2 * dim))
         self.V = (self.V + np.transpose(self.V, axes=[0, 2, 1])) / 2
