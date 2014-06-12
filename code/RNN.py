@@ -19,20 +19,20 @@ class RNN(object):
 
     """
 
-    def __init__(self, vocab={}, dim=30, r=None, reg=1):
+    def __init__(self, vocab={}, dim=30, r=0.0001, reg=1):
         self.dim = dim
 
         # TODO improve initialisation --> check ?
         # TODO add bias
         # Initiate V, the tensor operator
-        self.V = init_matrix((dim, 2 * dim, 2 * dim), r)
-        self.V = (self.V + np.transpose(self.V, axes=[0, 2, 1])) / 2
+        self.V = init_tensor(dim, 2 * dim, 2 * dim, r=r)
 
         # Initiate W, the linear operator
-        self.W = init_matrix((dim, 2 * dim))
+        self.W = init_matrix(dim, 2 * dim, bias=True)
 
         # Initiate Ws, the sentiment linear operator
-        self.Ws = init_matrix((2, dim))
+        self.Ws = init_matrix(2, dim, bias=True)
+        print self.Ws.shape
 
         # Regularisation
         self.regV = reg * 0.001
@@ -41,16 +41,29 @@ class RNN(object):
         self.regL = reg * 0.0001
 
         # Initiate L, the Lexicon representation
-        self.L = init_matrix((len(vocab), dim))
+        self.L = init_matrix(len(vocab), dim, bias=False)
         self.vocab = {}
         for i, w in enumerate(vocab):
             self.vocab[w] = i
 
-        self.f = lambda X: np.tanh(X.T.dot(self.V).dot(X) + self.W.dot(X))
+        self.f = lambda X: np.tanh(self.combine_with_bias(X))
         self.grad = lambda f: 1 - f ** 2
 
-        self.y = lambda x: np.exp(self.Ws.dot(x).clip(-500, 700)) \
-            / sum(np.exp(self.Ws.dot(x).clip(-500, 700)))
+        self.y = lambda x: self.sentiment_with_bias(x)
+
+    def combine(self, X):
+        return X.T.dot(self.V).dot(X) + self.W.dot(X)
+
+    def combine_with_bias(self, X):
+        return X.T.dot(self.V).dot(X) + self.W[::, :-1].dot(X) + self.W[::, -1]
+
+    def sentiment(self, x):
+        y = np.exp(self.Ws.dot(x).clip(-500, 700))
+        return y / np.sum(y)
+
+    def sentiment_with_bias(self, x):
+        y = np.exp((self.Ws[::, :-1].dot(x) + self.Ws[::, -1]).clip(-500, 700))
+        return y / np.sum(y)
 
     def save(self, saveFile):
         with open(saveFile, 'wb') as output:
@@ -137,9 +150,8 @@ class RNN(object):
 
         # Initialise les deltas
         for n in X_tree.nodes:
-            #TODO check usefulness
             if n.have_label():
-                n.d = self.Ws.T.dot(n.ypred - n.y)
+                n.d = self.Ws.T.dot(n.ypred - n.y)[:self.dim]
             else:
                 n.d = np.zeros(self.dim)
 
@@ -154,21 +166,21 @@ class RNN(object):
             if aT.order < bT.order:  # Si aT est le noeud de gauche
                 X = np.append(aT.X, bT.X)
                 ddown = (
-                    self.W.T.dot(pT.d * gX)
+                    self.W.T.dot(pT.d * gX)[:self.dim]
                     + 2 * (pT.d * gX).dot(self.V.dot(X)))
                 aT.d += ddown[:self.dim]
                 bT.d += ddown[self.dim:]
             else:  # aT est a droite
                 X = np.append(bT.X, aT.X)
                 ddown = (
-                    self.W.T.dot(pT.d * gX)
+                    self.W.T.dot(pT.d * gX)[:self.dim]
                     + 2 * (pT.d * gX).dot(self.V.dot(X)))
                 aT.d += ddown[self.dim:]
                 bT.d += ddown[:self.dim]
             # Contribution aux gradients du pT
-            if pT.have_label():  # TODO check usefulness
-                if (pT.y is None) or (pT.ypred is None):
-                    print "ypred: %4f, y: %4f" % (pT.ypred[1], pT.y[1])
+            if pT.have_label():
+                # if (pT.y is None) or (pT.ypred is None):
+                #     print "ypred: %4f, y: %4f" % (pT.ypred[1], pT.y[1])
                 dWs += np.outer(pT.ypred - pT.y, pT.X)
             dV += np.tensordot(pT.d * gX, np.outer(X, X), axes=0)
             dW += np.outer(pT.d * gX, X)
@@ -176,9 +188,7 @@ class RNN(object):
         # Contribution des feuilles
         for n in X_tree.leaf:
             dL[self.vocab[n.word]] += n.d
-            if n.have_label():  # TODO check usefulness
-                if (n.y is None) or (n.ypred is None):
-                    print "ypred: %4f, y: %4f" % (n.ypred[1], n.y[1])
+            if n.have_label():
                 dWs += np.outer(n.ypred - n.y, n.X)
 
         return dWs, dV, dW, dL
@@ -199,18 +209,10 @@ class RNN(object):
         if not warm_start:
             print 'reseting the RNN'
             dim = self.dim
-            # Initiate V, the tensor operator
-            self.V = np.random.uniform(-r, r, size=(dim, 2 * dim, 2 * dim))
-            self.V = (self.V + np.transpose(self.V, axes=[0, 2, 1])) / 2
-
-            # Initiate W, the linear operator
-            self.W = np.random.uniform(-r, r, size=(dim, 2 * dim))
-
-            # Initiate Ws, the linear operator
-            self.Ws = np.random.uniform(-r, r, size=(2, dim))
-
-            # Initiate L, the Lexicon representation
-            self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
+            self.V = init_tensor(dim, 2 * dim, 2 * dim, r=r)
+            self.W = init_matrix(dim, 2 * dim, bias=True)
+            self.Ws = init_matrix(2, dim, bias=True)
+            self.L = init_matrix(len(self.vocab), dim, bias=False)
 
         self.printPerformanceSummary(val_set)
         self.print_confusion_matrix(val_set)
@@ -528,15 +530,25 @@ def aggregate(scTotal, sc):
     return (scTotal[0] + sc[0], scTotal[1] + sc[1])
 
 
-def init_matrix(size, r=None, method="Bengio"):
+def init_matrix(nRows, nCols, bias=True, r=None, method="Bengio"):
+    mat = np.zeros((nRows, nCols + bias))
+    print mat.shape
     if r is None:
         if method == "Bengio":
-            r = sqrt(6) / sqrt(size[0] + size[1])
+            r = sqrt(6) / sqrt(nRows + nCols)
         if method == "Classic":
-            r = 1.0 / sqrt(size[1])
+            r = 1.0 / sqrt(nCols)
         if method == "Marteens":
-            mat = np.zeros(size)
-            for i in range(size[0]):
-                mat[i, np.random.choice(range(size[1]), 15)] = np.random.normal(1, 1, 15)
+            for i in range(nRows):
+                mat[i, np.random.choice(range(nCols), 15)] = np.random.normal(1, 1, 15)
+                if bias:
+                    mat[::, -1] = 0.5
             return mat
-    return np.random.uniform(-r, r, size=size)
+        mat[::, :nCols] = np.random.uniform(-r, r, size=(nRows, nCols))
+    return mat
+
+
+def init_tensor(nRows, nCols, nLayers, r=0.0001):
+    V = np.random.uniform(-r, r, size=(nRows, nCols, nLayers))
+    V = (V + np.transpose(V, axes=[0, 2, 1])) / 2
+    return V
