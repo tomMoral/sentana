@@ -56,20 +56,22 @@ class Node(object):
 
     def score_fine(self):
         if self.have_label():
-            return Node.getSoftLabel(self.ypred[1]) == Node.getSoftLabel(self.y[1])
+            return (Node.getSoftLabel(self.ypred[1]) == Node.getSoftLabel(self.y[1]), 1)
         else:
-            return 0
+            return (0, 0)
 
     def score_binary(self, inc_neut=False):
-        if self.have_label():
+        if self.have_label() and (inc_neut or not (0.4 < self.y[1] <= 0.6)):
             return ((self.ypred[1] <= 0.5 and self.y[1] <= 0.5) or
-                    (self.ypred[1] > 0.5 and self.y[1] > 0.5))\
-                * (inc_neut or not (0.4 < self.y[1] <= 0.6))
+                    (self.ypred[1] > 0.5 and self.y[1] > 0.5), 1)
         else:
-            return 0
+            return (0, 0)
 
     def score_eps(self, eps):
+        '''
+        Score sur les predictions MAP avec 5 label
+        '''
         if self.have_label():
-            return (abs(self.ypred[1] - self.y[1]) <= eps)
+            return (abs(self.ypred[1] - self.y[1]) <= eps, 1)
         else:
-            return 0
+            return (0, 0)

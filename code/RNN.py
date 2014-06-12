@@ -1,8 +1,9 @@
 # -*- coding: utf8 -*-
 import numpy as np
 import pickle
-from itertools import ifilter
+from itertools import ifilter, imap
 from Node import Node
+from math import sqrt
 
 
 class RNN(object):
@@ -18,20 +19,20 @@ class RNN(object):
 
     """
 
-    def __init__(self, vocab={}, dim=30, r=0.0001, reg=1):
+    def __init__(self, vocab={}, dim=30, r=None, reg=1):
         self.dim = dim
 
-        # TODO improve initialisation
+        # TODO improve initialisation --> check ?
         # TODO add bias
         # Initiate V, the tensor operator
-        self.V = np.random.uniform(-r, r, size=(dim, 2 * dim, 2 * dim))
+        self.V = init_matrix((dim, 2 * dim, 2 * dim), r)
         self.V = (self.V + np.transpose(self.V, axes=[0, 2, 1])) / 2
 
         # Initiate W, the linear operator
-        self.W = np.random.uniform(-r, r, size=(dim, 2 * dim))
+        self.W = init_matrix((dim, 2 * dim))
 
         # Initiate Ws, the sentiment linear operator
-        self.Ws = np.random.uniform(-r, r, size=(2, dim))
+        self.Ws = init_matrix((2, dim))
 
         # Regularisation
         self.regV = reg * 0.001
@@ -40,7 +41,7 @@ class RNN(object):
         self.regL = reg * 0.0001
 
         # Initiate L, the Lexicon representation
-        self.L = np.random.uniform(-r, r, size=(len(vocab), dim))
+        self.L = init_matrix((len(vocab), dim))
         self.vocab = {}
         for i, w in enumerate(vocab):
             self.vocab[w] = i
@@ -429,52 +430,36 @@ class RNN(object):
     def printPerformanceSummary(self, X_trees):
         sa, sr = self.score_fine(X_trees)
         sa_bin, sr_bin = self.score_binary(X_trees)
-        print 'Fine grain\tBinary'
-        print 'Overall\t\t{:.3}\t{:.3}'.format(sa, sa_bin)
-        print 'Root\t\t{:.3}\t{:.3}'.format(sr, sr_bin)
+        print '\t\tFine grain\tBinary'
+        print 'Overall\t| %3f\t%3f' % (sa, sa_bin)
+        print 'Root\t| %3f\t%3f' % (sr, sr_bin)
         self.print_layers_norm()
 
-    def score_fine(self, X_trees):
-        '''
-        Score sur les predictions MAP avec 5 label
-        '''
-        countAll = 0
-        countRoot = 0
-        scAll = 0.0
-        scRoot = 0.0
+    def score(self, function, X_trees):
+        scRoot = (0.0, 0.0)  # Score and count for roots
+        scAll = (0.0, 0.0)
         for X_tree in X_trees:
             self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                countAll += n.have_label()
-                scAll += n.score_fine()
-            n = X_tree.nodes[-1]
-            countRoot += n.have_label()
-            scRoot += n.score_fine()
-        return scAll / countAll, scRoot / countRoot
+            scTree = reduce(aggregate, imap(function, X_tree.nodes))
+            scAll = aggregate(scAll, scTree)
+            scRoot = aggregate(scRoot, function(X_tree.root))
+
+        return scAll[0] / scAll[1], scRoot[0] / scRoot[1]
+
+    def score_fine(self, X_trees):
+        return self.score(Node.score_fine, X_trees)
 
     def score_binary(self, X_trees, inc_neut=False):
-        '''
-        Score sur les prediction MAP pos/neg
-        '''
-        countAll = 0
-        countRoot = 0
-        scAll = 0.0
-        scRoot = 0.0
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            for n in ifilter(Node.have_label, X_tree.nodes):
-                if n.have_label():
-                    countAll += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-                    scAll += n.score_binary(inc_neut)
-            n = X_tree.nodes[-1]
-            if n.have_label():
-                countRoot += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-                scRoot += n.score_binary(inc_neut)
-        return scAll / countAll, scRoot / countRoot
+        s = lambda n: n.score_binary(inc_neut=inc_neut)
+        return self.score(s, X_trees)
+
+    def score_eps(self, X_trees, eps):
+        s = lambda n: n.score_eps(eps)
+        return self.score(s, X_trees)
 
     def check_derivative(self, X_tree, eps=1e-6):
         '''
-        Fait une compaaison dérivee / differences finies
+        Fait une comparaison dérivee / differences finies
         '''
         error1 = self.forward_pass(X_tree)
         dWs, dV, dW, dL = self.backward_pass(X_tree)
@@ -503,9 +488,9 @@ class RNN(object):
                 lp = Node.getSoftLabel(n.ypred[1])
                 l = Node.getSoftLabel(n.y[1])
                 confAll[l, lp] += 1
-            if tree.nodes[-1].have_label():
-                lp = Node.getSoftLabel(tree.nodes[-1].ypred[1])
-                l = Node.getSoftLabel(tree.nodes[-1].y[1])
+            if tree.root.have_label():
+                lp = Node.getSoftLabel(tree.root.ypred[1])
+                l = Node.getSoftLabel(tree.root.y[1])
                 confRoot[l, lp] += 1
         # for lp in range(5):
         #     confAll[lp, :] /= np.sum(confAll[lp, :])
@@ -538,20 +523,20 @@ class RNN(object):
             _, y[i] = revert_vocab[i]
         plt.scatter(X[:, 0], X[:, 1], c=y, cmap=cm.jet)
 
-    def score_eps(self, X_trees, eps):
-        '''
-        Score sur les predictions MAP avec 5 label
-        '''
-        countAll = 0
-        countRoot = 0
-        scAll = 0.0
-        scRoot = 0.0
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                countAll += n.have_label()
-                scAll += n.score_eps(eps)
-            n = X_tree.nodes[-1]
-            countRoot += n.have_label()
-            scRoot += n.score_eps(eps)
-        return scAll / countAll, scRoot / countRoot
+
+def aggregate(scTotal, sc):
+    return (scTotal[0] + sc[0], scTotal[1] + sc[1])
+
+
+def init_matrix(size, r=None, method="Bengio"):
+    if r is None:
+        if method == "Bengio":
+            r = sqrt(6) / sqrt(size[0] + size[1])
+        if method == "Classic":
+            r = 1.0 / sqrt(size[1])
+        if method == "Marteens":
+            mat = np.zeros(size)
+            for i in range(size[0]):
+                mat[i, np.random.choice(range(size[1]), 15)] = np.random.normal(1, 1, 15)
+            return mat
+    return np.random.uniform(-r, r, size=size)

@@ -20,6 +20,8 @@ class Tree(object):
         for i in range(2 * wc - 1):
             self.nodes.append(Node())
 
+        self.root = self.nodes[-1]
+
         for i, w in enumerate(sentence):
             node = self.nodes[i]
             node.word = w

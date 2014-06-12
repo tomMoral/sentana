@@ -45,6 +45,8 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    print args
+
     from load import load
     lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = \
         load(args.dataset,
@@ -52,6 +54,7 @@ if __name__ == '__main__':
              remove_leaf_label=args.remove_leaf)
 
     if args.rae:
+        print "Using RAE"
         from RAE import RAE
         model = RAE(vocab=lexicon, reg=args.reg)
         l1, l2 = model.train(X_trees_train,
@@ -65,6 +68,7 @@ if __name__ == '__main__':
                              w_root=args.wroot,
                              learning_rate=args.lr)
     else:
+        print "Using RNN"
         from RNN import RNN
         model = RNN(vocab=lexicon, reg=args.reg)
         l1, l2 = model.train(X_trees_train,
