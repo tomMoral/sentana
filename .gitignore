@@ -1,1 +1,5 @@
 *.pyc
+*.pkl
+*.sublime-project
+*.sublime-workspace
+data/words/*

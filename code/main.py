@@ -1,67 +1,130 @@
 # -*- coding: utf8 -*-
 
-DATASET = '../data'
+DATASET = '../data/stanfordSentimentTreebank'
 if __name__ == '__main__':
 
     import argparse
+    import os
+
+    import subprocess
+    commit_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])
+    commit_message = subprocess.check_output(['git', 'log', '-1'])
+    print commit_message
 
     parser = argparse.ArgumentParser('Run a RNN sentiment tree analysis'
                                      ' over the stanfor tree bank')
     parser.add_argument('--strat', type=str, default='AdaGrad',
                         help='Strategie for the learning. {AdaGrad, Rmsprop}')
-    parser.add_argument('--iter', type=int, default=1000,
-                        help='Nb max d\'iteration {default: 400')
+    parser.add_argument('--epoch', type=int, default=100,
+                        help='Nb max d\'epoch {default: 100')
+    parser.add_argument('--iter', type=int, default=-1,
+                        help='Nb max d\'iteration, this option disable the training by epoch {default: -1')
     parser.add_argument('--bin', action='store_true',
                         help='Perform a binary classification')
     parser.add_argument('--mb_size', type=int, default=27,
                         help='Size of the mini-batch')
     parser.add_argument('--reset_freq', type=int, default=-1,
                         help='Frequence of reset for adagrad')
-    parser.add_argument('--n_stop', type=int, default=4,
-                        help='Threshold for eraly stopping -1 to avoid ES')
+    parser.add_argument('--n_stop', type=int, default=8,
+                        help='Threshold for early stopping -1 to avoid ES')
     parser.add_argument('--reg', type=float, default=1,
                         help='Regularisation factor scaling')
+    parser.add_argument('--n_check', type=float, default=32,
+                        help='Frequence of checking early stopping')
     parser.add_argument('--lr', type=float, default=0.01,
-                        help='Learning rate')
-    parser.add_argument('--n_check', type=float, default=50,
                         help='Learning rate')
     parser.add_argument('--save_tmp', type=str, default='tmp.pkl',
                         help='Tmp file save')
+    parser.add_argument('--model_dump', type=str, default='model/model',
+                        help='Where to dump the succesives model of the NN')
     parser.add_argument('--wroot', type=int, default=1,
-                        help='Relative weight of the root compare to the other nodes')
+                        help='Relative weight of the root compared \
+                        to the other nodes')
     parser.add_argument('--rae', action='store_true',
                         help='Use the RAE')
+    parser.add_argument('--remove_middle', action='store_true',
+                        help='remove middle labels')
+    parser.add_argument('--remove_leaf', action='store_true',
+                        help='remove leaf labels')
+    parser.add_argument('--dataset', type=str, default=DATASET)
 
     args = parser.parse_args()
+    print args
 
-    from load import load
-    lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = load()
+    import cPickle as pickle
+    if not os.path.exists('trees.pkl'):
+        from load import load
+        lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = load(args.dataset)
+        with open('trees.pkl', 'wb') as output:
+            pickle.dump((lexicon, X_trees_train, X_trees_dev, X_trees_test, lab), output, -1)
+    else:
+        with open('trees.pkl', 'rb') as input:
+            lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = pickle.load(input)
+
+    if args.remove_middle or args.remove_leaf:
+        for X_trees in X_trees_train, X_trees_dev:
+            for X_tree in X_trees:
+                X_tree.strip_labels(leaf=args.remove_leaf, middle=args.remove_middle)
 
     if args.rae:
+        print "Using RAE"
         from RAE import RAE
         model = RAE(vocab=lexicon, reg=args.reg)
-        l1, l2 = model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
-                             strat=args.strat, mini_batch_size=args.mb_size,
-                             reset_freq=args.reset_freq, save_tmp=args.save_tmp,
-                             n_stop=args.n_stop, learning_rate=args.lr,
-                             w_root=args.wroot)
+        l1, l2 = model.train([t for t in X_trees_train if t.getDepth() == 2],
+                             max_epoch=args.epoch,
+                             val_set=X_trees_dev,
+                             strat=args.strat,
+                             mini_batch_size=args.mb_size,
+                             reset_freq=args.reset_freq,
+                             save_tmp=args.save_tmp,
+                             n_stop=args.n_stop,
+                             w_root=args.wroot,
+                             learning_rate=args.lr)
     else:
+        print "Using RNN"
         from RNN import RNN
+        import numpy as np
         model = RNN(vocab=lexicon, reg=args.reg)
-        l1, l2 = model.train(X_trees_train, max_iter=args.iter, val_set=X_trees_dev,
-                             strat=args.strat, mini_batch_size=args.mb_size,
-                             reset_freq=args.reset_freq, save_tmp=args.save_tmp,
-                             n_stop=args.n_stop, learning_rate=args.lr,
-                             w_root=args.wroot)
+        warm_start = False
+        maxDepth = max([t.getDepth() for t in X_trees_train])
+        minDepth = 2
+        #minDepth = maxDepth
+        #for depth in range(minDepth, maxDepth + 1):
+        for depth in [2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 30]:
+            print "=====> depth", depth
+            train_set = [t for t in X_trees_train if t.getDepth() <= depth]
+            dev_set = [t for t in X_trees_dev if t.getDepth() <= depth]
+            # train_set = np.concatenate((set, [t for t in X_trees_dev if t.getDepth() <= depth]))
+            l1, l2 = model.train(train_set,
+                                 max_epoch=args.epoch,
+                                 val_set=dev_set,
+                                 strat=args.strat,
+                                 mini_batch_size=args.mb_size,
+                                 reset_freq=args.reset_freq,
+                                 save_tmp=args.save_tmp,
+                                 n_stop=args.n_stop,
+                                 modelPath=args.model_dump,
+                                 learning_rate=args.lr,
+                                 warm_start=warm_start)
 
-    model.save('../data/exp1')
+            model.save('../data/exp{0}'.format(depth))
 
-    sa_trn, sr_trn = model.score_fine(X_trees_train)
-    sa_val, sr_val = model.score_fine(X_trees_dev)
-    sa_tst, sr_tst = model.score_fine(X_trees_test)
-    print 'Fine grain\tTrain\tTest\tValidation'
-    print 'Overall\t\t{:.3}\t{:.3}\t{:.3}'.format(sa_trn, sa_tst, sa_val)
-    print 'Root\t\t{:.3}\t{:.3}\t{:.3}'.format(sr_trn, sr_tst, sr_val)
+            if depth >= 10:
+                sa_trn, sr_trn = model.score_fine(X_trees_train)
+                sa_val, sr_val = model.score_fine(X_trees_dev)
+                sa_tst, sr_tst = model.score_fine(X_trees_test)
+                print 'Fine grain\tTrain\tTest\tValidation'
+                print 'Overall\t\t{:.3}\t{:.3}\t{:.3}'.format(sa_trn, sa_tst, sa_val)
+                print 'Root\t\t{:.3}\t{:.3}\t{:.3}'.format(sr_trn, sr_tst, sr_val)
+
+                sa_trn, sr_trn = model.score_binary(X_trees_train)
+                sa_val, sr_val = model.score_binary(X_trees_dev)
+                sa_tst, sr_tst = model.score_binary(X_trees_test)
+                print 'Binary\tTrain\tTest\tValidation'
+                print 'Overall\t\t{:.3}\t{:.3}\t{:.3}'.format(sa_trn, sa_tst, sa_val)
+                print 'Root\t\t{:.3}\t{:.3}\t{:.3}'.format(sr_trn, sr_tst, sr_val)
+
+            warm_start = True
 
     colors = {}
     n_gram = {}
@@ -85,6 +148,5 @@ if __name__ == '__main__':
                 l.append(4)
             colors[n] = l
 
-    import numpy as np
     for k in n_gram.keys():
         n_gram[k] = np.array(n_gram[k])
