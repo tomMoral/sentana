@@ -188,7 +188,7 @@ class RNN(object):
         for n in X_tree.leaf:
             dL[self.vocab[n.word]] += n.d
             if n.have_label():
-                dWs += np.outer(n.ypred - n.y, n.X)
+                dWs[:, :-1] += np.outer(n.ypred - n.y, n.X)
 
         return dWs, dV, dW, dL
 
