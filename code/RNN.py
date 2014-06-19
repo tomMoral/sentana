@@ -289,12 +289,13 @@ class RNN(object):
                     #take mini batch according to the current permutation
                     mini_batch_samples = X_trees_perm[
                         k * mini_batch_size:
-                        min(n_trees, (k + 1) * mini_batch_size)
-                    ]
+                        min(n_trees, (k + 1) * mini_batch_size)]
                 else:
                     # Choose mini batch randomly
                     mini_batch_samples = np.random.choice(
                         X_trees, size=mini_batch_size)
+
+                currentSize = len(mini_batch_samples)
 
                 # Initialize gradients to 0
                 dWsCurrent = np.zeros(self.Ws.shape)
@@ -312,17 +313,17 @@ class RNN(object):
                     dWCurrent += dW
                     dLCurrent += dL
 
-                currentMbe /= mini_batch_size
+                currentMbe /= currentSize
                 currentMbe += self.regWs * norm(self.Ws, bias=True) / 2.0
                 currentMbe += self.regW * norm(self.W, bias=True) / 2.0
                 currentMbe += self.regV * norm(self.V, bias=0) / 2.0
                 currentMbe += self.regL * norm(self.L, bias=0) / 2.0
 
                 # Division par le nombre de sample + regularisation
-                dWsCurrent = dWsCurrent / mini_batch_size + self.regWs * self.Ws
-                dVCurrent = dVCurrent / mini_batch_size + self.regV * self.V
-                dWCurrent = dWCurrent / mini_batch_size + self.regW * self.W
-                dLCurrent = dLCurrent / mini_batch_size + self.regL * self.L
+                dWsCurrent = dWsCurrent / currentSize + self.regWs * self.Ws
+                dVCurrent = dVCurrent / currentSize + self.regV * self.V
+                dWCurrent = dWCurrent / currentSize + self.regW * self.W
+                dLCurrent = dLCurrent / currentSize + self.regL * self.L
 
                 # Mise a jour des poids et calcul des pas
                 if strat == 'AdaGrad':
