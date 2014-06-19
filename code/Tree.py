@@ -55,6 +55,21 @@ class Tree(object):
                 pT.y[0] = 1 - pT.y[1]
                 pT.order = aT.order
 
+    def getRoot(self):
+        result = self.nodes[-1]
+        if result.parent != -1:
+            raise Exception("oops")
+        return len(self.nodes) - 1
+
+    def getDepth(self, node=None):
+        if node is None:
+            node = self.getRoot()
+        result = 0
+        for child in self.nodes[node].childrens:
+            if child != node:
+                result = max(result, self.getDepth(child))
+        return result + 1
+
     @staticmethod
     def getSoftLabel(l):
         if l <= 0.2:
