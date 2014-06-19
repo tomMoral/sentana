@@ -134,7 +134,7 @@ class RNN(object):
         # print E
         # return self.Ws.dot(pT.X) -> Pas besoin de retourner le lbel, il faut
         # le maj aussi?
-        return errorVal
+        return errorVal / X_tree.size
 
     def backward_pass(self, X_tree, root=False):
         '''

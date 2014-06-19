@@ -17,6 +17,7 @@ class Node(object):
         self.word = word
         self.parent = None
         self.childrens = []
+        self.weight = 1
         self.d = None  # Vecteur d'erreur
 
     def set_label(self, label):
@@ -36,7 +37,7 @@ class Node(object):
 
     def cost(self):
         if self.have_label():
-            return -np.sum(self.y * np.log(self.ypred))
+            return -np.sum(self.y * np.log(self.ypred)) * self.weight
         else:
             return 0
 

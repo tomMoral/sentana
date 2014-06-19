@@ -39,6 +39,9 @@ class Tree(object):
         self.parcours = parc.items()
         self.parcours.sort()
 
+        self.size = len(structure)
+        self.weight = 0
+
         if label is not None:
             for p, [a, b] in self.parcours:
                 aT = self.nodes[a]
