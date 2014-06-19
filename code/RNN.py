@@ -1,7 +1,9 @@
 # -*- coding: utf8 -*-
 import numpy as np
 import pickle
-import Tree
+from itertools import ifilter, imap
+from Node import Node
+from math import sqrt
 
 
 class RNN(object):
@@ -18,46 +20,30 @@ class RNN(object):
     """
 
     def __init__(self, vocab={}, dim=30, r=0.0001, reg=1):
-        self.sparse = True
         self.dim = dim
 
+        # TODO improve initialisation --> check ?
+        # TODO add bias
         # Initiate V, the tensor operator
-        #self.V = np.random.uniform(-r, r, size=(dim, 2 * dim, 2 * dim))
-        #self.V = (self.V + np.transpose(self.V, axes=[0, 2, 1])) / 2
-
-        # Initiate W, the linear operator
-        ##self.W = np.random.uniform(-r, r, size=(dim, 2 * dim))
-        #self.W = np.random.uniform(-1.0, 1.0, size=(dim, 2 * dim))
-        # self.sparsify(self.W)
-        # self.W = np.concatenate((self.W, np.zeros((self.W.shape[0], 1))),
-        # axis=1)       # joc: additional column for bias (init = 0)
-
-        # Initiate Ws, the sentiment linear operator
-        ##self.Ws = np.random.uniform(-r, r, size=(2, dim))
-        ##self.Ws = np.random.uniform(-1.0, 1.0, (2, dim))
-        # self.sparsify(self.Ws)
-        #self.Ws = np.zeros((2, dim))
-        # self.Ws = np.concatenate((self.Ws, np.zeros((self.Ws.shape[0], 1))),
-        # axis=1)    # joc: additional column for bias (init = 0)
-
-        # Regularisation
-        self.regV = reg * 0.001
-        self.regW = reg * 0.001
-        self.regWs = reg * 0.0001
-        self.regL2 = reg * 0.0001
-
-        # Initiate L, the Lexicon representation
-        #self.L = np.random.uniform(-r, r, size=(len(vocab), dim))
-        #self.L = np.random.uniform(-0.5, 0.5, size=(len(vocab), dim))
 
         self.vocab = {}
         for i, w in enumerate(vocab):
             self.vocab[w] = i
 
-        #self.f = lambda X: np.tanh(X.T.dot(self.V).dot(X) + self.W.dot(X))
-        self.f = lambda X: np.tanh(
-            X.T.dot(self.V).dot(X) + self.W.dot(np.append(X, 1)))  # joc
+        # Regularisation
+        self.regV = reg * self.V.size
+        self.regW = reg * self.W.size
+        self.regWs = reg * self.Ws.size
+        self.regL = reg * self.L.size
+
+        self.f = lambda X: np.tanh(self.combine_with_bias(X))
         self.grad = lambda f: 1 - f ** 2
+
+        self.y = lambda x: self.sentiment_with_bias(x)
+
+        # self.f = lambda X: np.tanh(
+        #     X.T.dot(self.V).dot(X) + self.W.dot(np.append(X, 1)))  # joc
+        # self.grad = lambda f: 1 - f ** 2
 
         self.f2 = lambda X: np.tanh(self.L2.dot(np.append(X, 1)))
         self.grad2 = lambda f: 1 - f ** 2
@@ -72,6 +58,20 @@ class RNN(object):
             n = np.random.permutation(range(0, W.shape[1]))[:-15]
             W[row, n] = 0
         return W
+
+    def combine(self, X):
+        return X.T.dot(self.V).dot(X) + self.W.dot(X)
+
+    def combine_with_bias(self, X):
+        return X.T.dot(self.V).dot(X) + self.W[::, :-1].dot(X) + self.W[::, -1]
+
+    def sentiment(self, x):
+        y = np.exp(self.Ws.dot(x).clip(-500, 700))
+        return y / np.sum(y)
+
+    def sentiment_with_bias(self, x):
+        y = np.exp((self.Ws[::, :-1].dot(x) + self.Ws[::, -1]).clip(-500, 700))
+        return y / np.sum(y)
 
     def save(self, saveFile):
         with open(saveFile, 'wb') as output:
@@ -123,26 +123,30 @@ class RNN(object):
             n.ypred = self.y(n.X)  # Mise a jour du label predit
             n.ypred += 1e-300 * (n.ypred == 0)
             assert (n.ypred != 0).all()
-            errorVal += -np.sum(n.y * np.log(n.ypred))
+            if n.cost() < 0:
+                print "cost: %4f, ypred: %4f, y: %4f" % (n.cost(), n.ypred[1], n.y[1])
+            errorVal += n.cost()
 
         for p, [a, b] in X_tree.parcours:
-            aT = X_tree.nodes[a]  #
             # Recupere pour chaque triplet parent,enfant1/2 les noeuds
+            aT = X_tree.nodes[a]
             bT = X_tree.nodes[b]
             pT = X_tree.nodes[p]
             if aT.order < bT.order:
                 X = np.append(aT.X, bT.X)
             else:
                 X = np.append(bT.X, aT.X)
-            pT.X = self.f(X)  # Mise a jour du decripteur du parent
+            pT.X = self.f(X)  # Mise a jour du descripteur du parent
             pT.ypred = self.y(pT.X)  # Mise a jour du label predit
             pT.ypred += 1e-300 * (pT.ypred == 0)
-            errorVal += -np.sum(pT.y * np.log(pT.ypred))
+            errorVal += pT.cost()
+            if pT.cost() < 0:
+                print "cost: %4f, ypred: %4f, y: %4f" % (pT.cost(), pT.ypred[1], pT.y[1])
         #E = sum([(self.y(n.X) - n.y) for n in X_tree.nodes])
         # print E
         # return self.Ws.dot(pT.X) -> Pas besoin de retourner le lbel, il faut
         # le maj aussi?
-        return errorVal / (len(X_tree.leaf) + len(X_tree.parcours))
+        return errorVal / X_tree.size
 
     def backward_pass(self, X_tree, root=False):
         '''
@@ -157,10 +161,11 @@ class RNN(object):
 
         # Initialise les deltas
         for n in X_tree.nodes:
-            if self.sparse and n.parent != -1:
-                n.d = np.zeros((self.dim))
+            if n.have_label():
+                # n.d = self.Ws[:, 0:self.dim].T.dot(n.ypred - n.y)
+                n.d = self.Ws[:self.dim].T.dot(n.ypred - n.y)
             else:
-                n.d = self.Ws[:, 0:self.dim].T.dot(n.ypred - n.y)
+                n.d = np.zeros(self.dim)
 
         # Descend dans l arbre
         for p, [a, b] in X_tree.parcours[::-1]:
@@ -176,47 +181,44 @@ class RNN(object):
             if aT.order < bT.order:  # Si aT est le noeud de gauche
                 X = np.append(aT.X, bT.X)
                 ddown = (
-                    self.W[0:self.dim, 0:2 * self.dim].T.dot(pT.d * gX)
+                    # self.W[0:self.dim, 0:2 * self.dim].T.dot(pT.d * gX)
+                    self.W.T.dot(pT.d * gX)[:2 * self.dim]
                     + 2 * (pT.d * gX).dot(self.V.dot(X)))
                 aT.d += ddown[:self.dim]
                 bT.d += ddown[self.dim:]
             else:  # aT est a droite
                 X = np.append(bT.X, aT.X)
                 ddown = (
-                    self.W[0:self.dim, 0:2 * self.dim].T.dot(pT.d * gX)
+                    self.W.T.dot(pT.d * gX)[:2 * self.dim]
                     + 2 * (pT.d * gX).dot(self.V.dot(X)))
-                aT.d += ddown[self.dim:]
                 bT.d += ddown[:self.dim]
-            # Contribution aux gradients du pT
-            if (not self.sparse) or pT.parent == -1:
-                #dWs += np.outer(pT.ypred - pT.y, pT.X)
-                # delta * X
-                dWs += np.outer(pT.ypred - pT.y, np.append(pT.X, 1))
+                aT.d += ddown[self.dim:]
 
+            # Contribution aux gradients du pT
+            if pT.have_label():
+                # if (pT.y is None) or (pT.ypred is None):
+                #     print "ypred: %4f, y: %4f" % (pT.ypred[1], pT.y[1])
+                dWs += np.outer(pT.ypred - pT.y, np.append(pT.X, 1))
             dV += np.tensordot(pT.d * gX, np.outer(X, X), axes=0)
-            #dW += np.outer(pT.d * gX, X)
-            # joc           # d = nextW * nextDelta => d * gx = delta => delta
-            # * X
             dW += np.outer(pT.d * gX, np.append(X, 1))
 
         # Contribution des feuilles
         # L(10 000, 30) = embeddings(10 000, 300) x L2(300, 30)
         for n in X_tree.leaf:
-            #dL[self.vocab[n.word]] += n.d
             gX = self.grad(n.X)
-
             X = self.embeddings[self.vocab[n.word]]
 
             dL2 += np.outer(n.d * gX, np.append(X, 1))
-            if (not self.sparse) or n.parent == -1:
-                #dWs += np.outer(n.ypred - n.y, n.X)
+            if n.have_label():
                 dWs += np.outer(n.ypred - n.y, np.append(n.X, 1))
 
         return dWs, dV, dW, dL2
 
     # TODO use the w_root argument ??
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
-              warm_start=False, r=0.0001, max_epoch=1000, val_set=[],
+              warm_start=False, r=0.0001,
+              max_epoch=1000, max_iter=-1,
+              val_set=[],
               n_check=8, strat='AdaGrad',
               bin=False, reset_freq=-1,
               modelPath='model/model',
@@ -231,30 +233,14 @@ class RNN(object):
             print 'reseting the RNN'
 
             dim = self.dim
-            # Initiate V, the tensor operator
-            self.V = np.random.uniform(-r, r, size=(dim, 2 * dim, 2 * dim))
-            self.V = (self.V + np.transpose(self.V, axes=[0, 2, 1])) / 2
 
-            # Initiate W, the linear operator
-            #self.W = np.random.uniform(-r, r, size=(dim, 2 * dim))
-            self.W = np.random.uniform(-1.0, 1.0, size=(dim, 2 * dim))
-            self.sparsify(self.W)
-            self.W = np.concatenate(
-                (self.W, np.zeros((self.W.shape[0], 1))), axis=1)  # joc: additional column for bias (init = 0)
+            self.V = init_tensor(dim, 2 * dim, 2 * dim, r=r)
+            self.W = init_matrix(dim, 2 * dim, bias=True)
+            # self.W = np.random.uniform(-1.0, 1.0, size=(dim, 2 * dim))
+            # self.sparsify(self.W)
+            # self.W = np.concatenate(
+            #     (self.W, np.zeros((self.W.shape[0], 1))), axis=1)  # joc: additional column for bias (init = 0)
 
-            # Initiate Ws, the linear operator
-            #self.Ws = np.random.uniform(-r, r, size=(2, dim))
-            #self.Ws = np.random.uniform(-1.0, 1.0, size=(2, dim))
-            # self.sparsify(self.Ws)
-            self.Ws = np.zeros((2, dim))
-            self.Ws = np.concatenate(
-                (self.Ws, np.zeros((self.Ws.shape[0], 1))), axis=1)  # joc: additional column for bias (init = 0)
-
-            # Initiate L, the Lexicon representation
-            #self.L = np.random.uniform(-r, r, size=(len(self.vocab), dim))
-            #self.L = np.random.uniform(-0.5, 0.5, size=(len(self.vocab), dim))
-
-            # L(len(vocab), dim) = embeddings(len(vocab), 300) x L2(300, dim)
             from Mikolov import load_mikolov
             self.embeddings = load_mikolov(self.vocab)
             self.L2 = np.random.uniform(
@@ -263,9 +249,12 @@ class RNN(object):
             self.L2 = np.concatenate(
                 (self.L2, np.zeros((self.L2.shape[0], 1))), axis=1)  # joc: additional column for bias (init = 0)
 
-        self.printPerformanceSummary(val_set)
-        self.printConfusion_matrix(val_set)
+            self.Ws = np.zeros((2, dim + 1))
 
+            # self.L = init_matrix(len(self.vocab), dim, bias=False)
+
+        self.printPerformanceSummary(val_set)
+        self.print_confusion_matrix(val_set)
         # Liste pour erreurs
         errMB = []
         errVal = []
@@ -279,6 +268,11 @@ class RNN(object):
             #prevError += self.regW * np.sum(self.W * self.W) / 2.0
             #prevError += self.regV * np.sum(self.V * self.V) / 2.0
             #prevError += self.regL * np.sum(self.L * self.L) / 2.0
+            prevError += self.regWs * norm(self.Ws, bias=True) / 2.0
+            prevError += self.regW * norm(self.W, bias=True) / 2.0
+            prevError += self.regV * np.sum(self.V * self.V) / 2.0
+            prevError += self.regL * np.sum(self.L * self.L) / 2.0
+
             iniError = prevError
             minError = prevError  # optimal error so far
             glError = 0
@@ -305,12 +299,15 @@ class RNN(object):
 
         early_stop = False
         n_trees = len(X_trees)
-        learn_by_epoch = True
+
+        if max_iter > 0:
+            learn_by_epoch = False
+            max_epoch = max_iter
+        else:
+            learn_by_epoch = True
 
         if learn_by_epoch:
-            # TODO learn by epoch
-            mini_batch_numbers = (
-                n_trees + mini_batch_size - 1) / mini_batch_size
+            mini_batch_numbers = (n_trees + mini_batch_size - 1) / mini_batch_size
             print "nb of batchs %i, batch size %i"\
                 % (mini_batch_numbers, mini_batch_size)
         else:
@@ -336,12 +333,13 @@ class RNN(object):
                     # take mini batch according to the current permutation
                     mini_batch_samples = X_trees_perm[
                         k * mini_batch_size:
-                        min(n_trees, (k + 1) * mini_batch_size)
-                    ]
+                        min(n_trees, (k + 1) * mini_batch_size)]
                 else:
                     # Choose mini batch randomly
                     mini_batch_samples = np.random.choice(
                         X_trees, size=mini_batch_size)
+
+                currentSize = len(mini_batch_samples)
 
                 # Initialize gradients to 0
                 dWsCurrent = np.zeros(self.Ws.shape)
@@ -359,18 +357,18 @@ class RNN(object):
                     dWCurrent += dW
                     dL2Current += dL2
 
-                n = len(mini_batch_samples)
-                currentMbe /= n
-                #currentMbe += self.regWs * np.sum(self.Ws * self.Ws) / 2.0
-                #currentMbe += self.regW * np.sum(self.W * self.W) / 2.0
-                #currentMbe += self.regV * np.sum(self.V * self.V) / 2.0
-                #currentMbe += self.regL * np.sum(self.L * self.L) / 2.0
+                currentMbe /= currentSize
+                # currentMbe += self.regWs * norm(self.Ws, bias=True) / 2.0
+                # currentMbe += self.regW * norm(self.W, bias=True) / 2.0
+                # currentMbe += self.regV * norm(self.V, bias=0) / 2.0
+                # currentMbe += self.regL * norm(self.L, bias=0) / 2.0
 
                 # Division par le nombre de sample + regularisation
-                dWsCurrent = dWsCurrent / n + self.regWs * self.Ws
-                dVCurrent = dVCurrent / n + self.regV * self.V
-                dWCurrent = dWCurrent / n + self.regW * self.W
-                dL2Current = dL2Current / n + self.regL2 * self.L2
+                dWsCurrent = dWsCurrent / currentSize + self.regWs * self.Ws
+                dVCurrent = dVCurrent / currentSize + self.regV * self.V
+                dWCurrent = dWCurrent / currentSize + self.regW * self.W
+                # dLCurrent = dLCurrent / currentSize + self.regL * self.L
+                dL2Current = dL2Current / currentSize + self.regL2 * self.L2
 
                 # Mise a jour des poids et calcul des pas
                 if strat == 'AdaGrad':
@@ -444,13 +442,10 @@ class RNN(object):
             if val_set != [] and (n_epoch % n_check) == 0:
 
                 currentError = self.error(val_set)
-
-                regularisationCost = self.regWs * \
-                    np.sum(self.Ws * self.Ws) / 2.0
-                regularisationCost += self.regW * np.sum(self.W * self.W) / 2.0
-                regularisationCost += self.regV * np.sum(self.V * self.V) / 2.0
-                regularisationCost += self.regL2 * \
-                    np.sum(self.L2 * self.L2) / 2.0
+                regularisationCost = self.regWs * norm(self.Ws, bias=True) / 2.0
+                regularisationCost += self.regW * norm(self.W, bias=True) / 2.0
+                regularisationCost += self.regV * norm(self.V, bias=0) / 2.0
+                regularisationCost += self.regL * norm(self.L, bias=0) / 2.0
 
                 errVal.append(currentError)
                 print('Error+regularisation cost, on validation set at epoch {0} : '
@@ -462,7 +457,7 @@ class RNN(object):
                 #currentError += regularisationCost
 
                 self.printPerformanceSummary(val_set)
-                self.printConfusion_matrix(val_set)
+                self.print_confusion_matrix(val_set)
 
                 with open(save_tmp, 'wb') as output:
                     pickle.dump(errVal, output, -1)
@@ -494,73 +489,36 @@ class RNN(object):
     def printPerformanceSummary(self, X_trees):
         sa, sr = self.score_fine(X_trees)
         sa_bin, sr_bin = self.score_binary(X_trees)
-        print 'Fine grain\tBinary'
-        print 'Overall\t\t{:.3}\t{:.3}'.format(sa, sa_bin)
-        print 'Root\t\t{:.3}\t{:.3}'.format(sr, sr_bin)
+        print '\t\tFine grain\tBinary'
+        print 'Overall\t| %3f\t%3f' % (sa, sa_bin)
+        print 'Root\t| %3f\t%3f' % (sr, sr_bin)
+        self.print_layers_norm()
+
+    def score(self, function, X_trees):
+        scRoot = (0.0, 0.0)  # Score and count for roots
+        scAll = (0.0, 0.0)
+        for X_tree in X_trees:
+            self.forward_pass(X_tree)
+            scTree = reduce(aggregate, imap(function, X_tree.nodes))
+            scAll = aggregate(scAll, scTree)
+            scRoot = aggregate(scRoot, function(X_tree.root))
+
+        return scAll[0] / scAll[1], scRoot[0] / scRoot[1]
 
     def score_fine(self, X_trees):
-        '''
-        Score sur les predictions MAP avec 5 label
-        '''
-        countAll = 0
-        countRoot = 0
-        scAll = 0.0
-        scRoot = 0.0
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                countAll += 1
-                scAll += (Tree.Tree.getSoftLabel(
-                    n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
-            countRoot += 1
-            n = X_tree.nodes[-1]
-            scRoot += (Tree.Tree.getSoftLabel(
-                n.ypred[1]) == Tree.Tree.getSoftLabel(n.y[1]))
-        return scAll / countAll, scRoot / countRoot
+        return self.score(Node.score_fine, X_trees)
 
     def score_binary(self, X_trees, inc_neut=False):
-        '''
-        Score sur les prediction MAP pos/neg
-        '''
-        countAll = 0
-        countRoot = 0
-        scAll = 0.0
-        scRoot = 0.0
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                countAll += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-                scAll += ((n.ypred[1] <= 0.5 and n.y[1] <= 0.5) or
-                          (n.ypred[1] > 0.5 and n.y[1] > 0.5)
-                          ) * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-            n = X_tree.nodes[-1]
-            countRoot += 1 * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-            scRoot += ((n.ypred[1] <= 0.5 and n.y[1] <= 0.5) or
-                       (n.ypred[1] > 0.5 and n.y[1] > 0.5)
-                       ) * (inc_neut or not (0.4 < n.y[1] <= 0.6))
-        return scAll / countAll, scRoot / countRoot
+        s = lambda n: n.score_binary(inc_neut=inc_neut)
+        return self.score(s, X_trees)
 
-    def printConfusion_matrix(self, X_trees):
-        confusionNode = np.zeros((5, 5))
-        confusionRoot = np.zeros((5, 5))
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                gold_label = Tree.Tree.getSoftLabel(n.y[1])
-                predicted_label = Tree.Tree.getSoftLabel(n.ypred[1])
-                confusionNode[gold_label, predicted_label] += 1
-
-            gold_label = Tree.Tree.getSoftLabel(n.y[1])
-            predicted_label = Tree.Tree.getSoftLabel(n.ypred[1])
-            confusionRoot[gold_label, predicted_label] += 1
-        print 'confusion on root'
-        print confusionRoot
-        print 'confusion on nodes'
-        print confusionNode
+    def score_eps(self, X_trees, eps):
+        s = lambda n: n.score_eps(eps)
+        return self.score(s, X_trees)
 
     def check_derivative(self, X_tree, eps=1e-6):
         '''
-        Fait une compaaison dérivee / differences finies
+        Fait une comparaison dérivee / differences finies
         '''
         error1 = self.forward_pass(X_tree)
         dWs, dV, dW, dL = self.backward_pass(X_tree)
@@ -585,17 +543,32 @@ class RNN(object):
         confAll = np.zeros((5, 5))
         confRoot = np.zeros((5, 5))
         for tree in X_trees:
-            for n in tree.nodes:
-                lp = Tree.Tree.getSoftLabel(n.ypred[1])
-                l = Tree.Tree.getSoftLabel(n.y[1])
+            for n in ifilter(Node.have_label, tree.nodes):
+                lp = Node.getSoftLabel(n.ypred[1])
+                l = Node.getSoftLabel(n.y[1])
                 confAll[l, lp] += 1
-            lp = Tree.Tree.getSoftLabel(tree.nodes[-1].ypred[1])
-            l = Tree.Tree.getSoftLabel(tree.nodes[-1].y[1])
-            confRoot[l, lp] += 1
-        for lp in range(5):
-            confAll[lp, :] /= np.sum(confAll[lp, :])
-            confRoot[lp, :] /= np.sum(confRoot[lp, :])
+            if tree.root.have_label():
+                lp = Node.getSoftLabel(tree.root.ypred[1])
+                l = Node.getSoftLabel(tree.root.y[1])
+                confRoot[l, lp] += 1
+        # for lp in range(5):
+        #     confAll[lp, :] /= np.sum(confAll[lp, :])
+        #     confRoot[lp, :] /= np.sum(confRoot[lp, :])
         return confAll, confRoot
+
+    def print_confusion_matrix(self, X_trees):
+        confAll, confRoot = self.confusion_matrix(X_trees)
+        print 'confusion on root'
+        print confRoot
+        print 'confusion on nodes'
+        print confAll
+
+    def print_layers_norm(self):
+        norm = lambda W: np.linalg.norm(W) / W.size
+        print "tensor norm: %f, max: %f" % (norm(self.V), np.max(self.V))
+        print "combinator norm: %f, max: %f" % (norm(self.W), np.max(self.W))
+        print "sentiment norm: %f, max: %f" % (norm(self.Ws), np.max(self.Ws))
+        print "lexicon norm: %f, max: %f" % (norm(self.L), np.max(self.L))
 
     def plot_words_2D(self, labels):
         from sklearn.decomposition import PCA
@@ -609,19 +582,36 @@ class RNN(object):
             _, y[i] = revert_vocab[i]
         plt.scatter(X[:, 0], X[:, 1], c=y, cmap=cm.jet)
 
-    def score_eps(self, X_trees, eps):
-        '''Score sur les predictions MAP avec 5 label
-        '''
-        countAll = 0
-        countRoot = 0
-        scAll = 0.0
-        scRoot = 0.0
-        for X_tree in X_trees:
-            self.forward_pass(X_tree)
-            for n in X_tree.nodes:
-                countAll += 1
-                scAll += (abs(n.ypred[1] - n.y[1]) <= eps)
-            countRoot += 1
-            n = X_tree.nodes[-1]
-            scRoot += (abs(n.ypred[1] - n.y[1]) <= eps)
-        return scAll / countAll, scRoot / countRoot
+
+def aggregate(scTotal, sc):
+    return (scTotal[0] + sc[0], scTotal[1] + sc[1])
+
+
+def init_matrix(nRows, nCols, bias=True, r=None, method="Bengio"):
+    mat = np.zeros((nRows, nCols + bias))
+    if r is None:
+        if method == "Bengio":
+            r = sqrt(6) / sqrt(nRows + nCols)
+        if method == "Classic":
+            r = 1.0 / sqrt(nCols)
+        if method == "Marteens":
+            for i in range(nRows):
+                mat[i, np.random.choice(range(nCols), 15)] = np.random.normal(1, 1, 15)
+                if bias:
+                    mat[::, -1] = 0.5
+            return mat
+        mat[::, :nCols] = np.random.uniform(-r, r, size=(nRows, nCols))
+    return mat
+
+
+def init_tensor(nRows, nCols, nLayers, r=0.0001):
+    V = np.random.uniform(-r, r, size=(nRows, nCols, nLayers))
+    V = (V + np.transpose(V, axes=[0, 2, 1])) / 2
+    return V
+
+
+def norm(W, bias=True):
+    if bias:
+        return np.sum(W[::, :-1] * W[::, :-1])
+    else:
+        return np.sum(W * W)

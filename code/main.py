@@ -6,7 +6,10 @@ if __name__ == '__main__':
     import argparse
     import os
 
-    #print os.environ['PATH']
+    import subprocess
+    commit_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])
+    commit_message = subprocess.check_output(['git', 'log', '-1'])
+    print commit_message
 
     parser = argparse.ArgumentParser('Run a RNN sentiment tree analysis'
                                      ' over the stanfor tree bank')
@@ -14,6 +17,8 @@ if __name__ == '__main__':
                         help='Strategie for the learning. {AdaGrad, Rmsprop}')
     parser.add_argument('--epoch', type=int, default=100,
                         help='Nb max d\'epoch {default: 100')
+    parser.add_argument('--iter', type=int, default=-1,
+                        help='Nb max d\'iteration, this option disable the training by epoch {default: -1')
     parser.add_argument('--bin', action='store_true',
                         help='Perform a binary classification')
     parser.add_argument('--mb_size', type=int, default=27,
@@ -37,20 +42,32 @@ if __name__ == '__main__':
                         to the other nodes')
     parser.add_argument('--rae', action='store_true',
                         help='Use the RAE')
+    parser.add_argument('--remove_middle', action='store_true',
+                        help='remove middle labels')
+    parser.add_argument('--remove_leaf', action='store_true',
+                        help='remove leaf labels')
+    parser.add_argument('--dataset', type=str, default=DATASET)
 
     args = parser.parse_args()
+    print args
 
     import cPickle as pickle
     if not os.path.exists('trees.pkl'):
         from load import load
-        lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = load()
+        lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = load(args.dataset)
         with open('trees.pkl', 'wb') as output:
             pickle.dump((lexicon, X_trees_train, X_trees_dev, X_trees_test, lab), output, -1)
     else:
         with open('trees.pkl', 'rb') as input:
             lexicon, X_trees_train, X_trees_dev, X_trees_test, lab = pickle.load(input)
 
+    if args.remove_middle or args.remove_leaf:
+        for X_trees in X_trees_train, X_trees_dev:
+            for X_tree in X_trees:
+                X_tree.strip_labels(leaf=args.remove_leaf, middle=args.remove_middle)
+
     if args.rae:
+        print "Using RAE"
         from RAE import RAE
         model = RAE(vocab=lexicon, reg=args.reg)
         l1, l2 = model.train([t for t in X_trees_train if t.getDepth() == 2],
@@ -64,6 +81,7 @@ if __name__ == '__main__':
                              w_root=args.wroot,
                              learning_rate=args.lr)
     else:
+        print "Using RNN"
         from RNN import RNN
         import numpy as np
         model = RNN(vocab=lexicon, reg=args.reg)
@@ -105,6 +123,7 @@ if __name__ == '__main__':
                 print 'Binary\tTrain\tTest\tValidation'
                 print 'Overall\t\t{:.3}\t{:.3}\t{:.3}'.format(sa_trn, sa_tst, sa_val)
                 print 'Root\t\t{:.3}\t{:.3}\t{:.3}'.format(sr_trn, sr_tst, sr_val)
+
             warm_start = True
 
     colors = {}

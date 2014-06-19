@@ -4,14 +4,76 @@ import numpy as np
 
 class Node(object):
     """Class that implement the node of the parsing tree"""
+
     def __init__(self, word=None, label=None):
+        if label < 0:
+            label = None
         self.y = label
         if label is not None:
-            self.ypred = np.ones(len(label))/len(label)
+            self.ypred = np.ones(len(label)) / len(label)
         else:
             self.ypred = None
         self.X = None
         self.word = word
         self.parent = None
         self.childrens = []
+        self.weight = 1
         self.d = None  # Vecteur d'erreur
+
+    def set_label(self, label):
+        if label is None:
+            self.y = None
+        else:
+            label = float(label)
+            if label < 0 or label > 1:
+                self.y = None
+            else:
+                self.y = np.zeros(2)
+                self.y[1] = label
+                self.y[0] = 1 - self.y[1]
+        self.have_label = self.y is not None
+
+    def strip_label(self):
+        self.set_label(None)
+
+    def cost(self):
+        if self.have_label():
+            return -np.sum(self.y * np.log(self.ypred)) * self.weight
+        else:
+            return 0
+
+    @staticmethod
+    def getSoftLabel(l):
+        if l <= 0.2:
+            label = 0
+        elif 0.2 < l <= 0.4:
+            label = 1
+        elif 0.4 < l <= 0.6:
+            label = 2
+        elif 0.6 < l <= 0.8:
+            label = 3
+        else:
+            label = 4
+        return label
+
+    def score_fine(self):
+        if self.have_label():
+            return (Node.getSoftLabel(self.ypred[1]) == Node.getSoftLabel(self.y[1]), 1)
+        else:
+            return (0, 0)
+
+    def score_binary(self, inc_neut=False):
+        if self.have_label() and (inc_neut or not (0.4 < self.y[1] <= 0.6)):
+            return ((self.ypred[1] <= 0.5 and self.y[1] <= 0.5) or
+                    (self.ypred[1] > 0.5 and self.y[1] > 0.5), 1)
+        else:
+            return (0, 0)
+
+    def score_eps(self, eps):
+        '''
+        Score sur les predictions MAP avec 5 label
+        '''
+        if self.have_label():
+            return (abs(self.ypred[1] - self.y[1]) <= eps, 1)
+        else:
+            return (0, 0)
