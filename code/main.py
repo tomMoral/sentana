@@ -14,6 +14,8 @@ if __name__ == '__main__':
                         help='Strategie for the learning. {AdaGrad, Rmsprop}')
     parser.add_argument('--epoch', type=int, default=100,
                         help='Nb max d\'epoch {default: 100')
+    parser.add_argument('--iter', type=int, default=-1,
+                        help='Nb max d\'iteration, this option disable the training by epoch {default: -1')
     parser.add_argument('--bin', action='store_true',
                         help='Perform a binary classification')
     parser.add_argument('--mb_size', type=int, default=27,
@@ -73,6 +75,7 @@ if __name__ == '__main__':
         model = RNN(vocab=lexicon, reg=args.reg)
         l1, l2 = model.train(X_trees_train,
                              max_epoch=args.epoch,
+                             max_iter=args.iter,
                              val_set=X_trees_dev,
                              strat=args.strat,
                              mini_batch_size=args.mb_size,

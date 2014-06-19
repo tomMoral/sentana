@@ -194,7 +194,9 @@ class RNN(object):
 
     #TODO use the w_root argument ??
     def train(self, X_trees, learning_rate=0.01, mini_batch_size=27,
-              warm_start=False, r=0.0001, max_epoch=1000, val_set=[],
+              warm_start=False, r=0.0001,
+              max_epoch=1000, max_iter=-1,
+              val_set=[],
               n_check=8, strat='AdaGrad',
               bin=False, reset_freq=-1,
 
@@ -255,7 +257,10 @@ class RNN(object):
 
         early_stop = False
         n_trees = len(X_trees)
-        learn_by_epoch = True
+
+        if max_iter > 0:
+            learn_by_epoch = False
+            max_epoch = max_iter
 
         if learn_by_epoch:
             mini_batch_numbers = (n_trees + mini_batch_size - 1) / mini_batch_size
