@@ -165,24 +165,24 @@ class RNN(object):
             if aT.order < bT.order:  # Si aT est le noeud de gauche
                 X = np.append(aT.X, bT.X)
                 ddown = (
-                    self.W.T.dot(pT.d * gX)[:self.dim]
+                    self.W.T.dot(pT.d * gX)[:-1]
                     + 2 * (pT.d * gX).dot(self.V.dot(X)))
                 aT.d += ddown[:self.dim]
                 bT.d += ddown[self.dim:]
             else:  # aT est a droite
                 X = np.append(bT.X, aT.X)
                 ddown = (
-                    self.W.T.dot(pT.d * gX)[:self.dim]
+                    self.W.T.dot(pT.d * gX)[:-1]
                     + 2 * (pT.d * gX).dot(self.V.dot(X)))
-                aT.d += ddown[self.dim:]
                 bT.d += ddown[:self.dim]
+                aT.d += ddown[self.dim:]
             # Contribution aux gradients du pT
             if pT.have_label():
                 # if (pT.y is None) or (pT.ypred is None):
                 #     print "ypred: %4f, y: %4f" % (pT.ypred[1], pT.y[1])
-                dWs += np.outer(pT.ypred - pT.y, pT.X)
+                dWs[:, :-1] += np.outer(pT.ypred - pT.y, pT.X)
             dV += np.tensordot(pT.d * gX, np.outer(X, X), axes=0)
-            dW += np.outer(pT.d * gX, X)
+            dW[:, :-1] += np.outer(pT.d * gX, X)
 
         # Contribution des feuilles
         for n in X_tree.leaf:
