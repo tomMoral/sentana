@@ -5,8 +5,12 @@ if __name__ == '__main__':
 
     import argparse
     import os
-
     print os.environ['PATH']
+
+    import subprocess
+    commit_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])
+    commit_message = subprocess.check_output(['git', 'log', '-1'])
+    print commit_message
 
     parser = argparse.ArgumentParser('Run a RNN sentiment tree analysis'
                                      ' over the stanfor tree bank')
@@ -82,7 +86,7 @@ if __name__ == '__main__':
                              reset_freq=args.reset_freq,
                              save_tmp=args.save_tmp,
                              n_stop=args.n_stop,
-                             modelPath=args.model_dump,
+                             modelPath=args.model_dump + commit_hash,
                              learning_rate=args.lr)
 
     model.save('../data/exp1')
