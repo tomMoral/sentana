@@ -32,19 +32,18 @@ class RNN(object):
 
         # Initiate Ws, the sentiment linear operator
         self.Ws = init_matrix(2, dim, bias=True)
-        print self.Ws.shape
-
-        # Regularisation
-        self.regV = reg * 0.001
-        self.regW = reg * 0.001
-        self.regWs = reg * 0.0001
-        self.regL = reg * 0.0001
 
         # Initiate L, the Lexicon representation
         self.L = init_matrix(len(vocab), dim, bias=False)
         self.vocab = {}
         for i, w in enumerate(vocab):
             self.vocab[w] = i
+
+        # Regularisation
+        self.regV = reg * self.V.size
+        self.regW = reg * self.W.size
+        self.regWs = reg * self.Ws.size
+        self.regL = reg * self.L.size
 
         self.f = lambda X: np.tanh(self.combine_with_bias(X))
         self.grad = lambda f: 1 - f ** 2
@@ -226,8 +225,8 @@ class RNN(object):
         gradNorm = 1.0
         if val_set != []:
             prevError = self.error(val_set)
-            prevError += self.regWs * np.sum(self.Ws * self.Ws) / 2.0
-            prevError += self.regW * np.sum(self.W * self.W) / 2.0
+            prevError += self.regWs * norm(self.Ws, bias=True) / 2.0
+            prevError += self.regW * norm(self.W, bias=True) / 2.0
             prevError += self.regV * np.sum(self.V * self.V) / 2.0
             prevError += self.regL * np.sum(self.L * self.L) / 2.0
             iniError = prevError
@@ -309,10 +308,10 @@ class RNN(object):
                     dLCurrent += dL
 
                 currentMbe /= mini_batch_size
-                currentMbe += self.regWs * np.sum(self.Ws * self.Ws) / 2.0
-                currentMbe += self.regW * np.sum(self.W * self.W) / 2.0
-                currentMbe += self.regV * np.sum(self.V * self.V) / 2.0
-                currentMbe += self.regL * np.sum(self.L * self.L) / 2.0
+                currentMbe += self.regWs * norm(self.Ws, bias=True) / 2.0
+                currentMbe += self.regW * norm(self.W, bias=True) / 2.0
+                currentMbe += self.regV * norm(self.V, bias=0) / 2.0
+                currentMbe += self.regL * norm(self.L, bias=0) / 2.0
 
                 # Division par le nombre de sample + regularisation
                 dWsCurrent = dWsCurrent / mini_batch_size + self.regWs * self.Ws
@@ -387,10 +386,10 @@ class RNN(object):
 
                 currentError = self.error(val_set)
 
-                regularisationCost = self.regWs * np.sum(self.Ws * self.Ws) / 2.0
-                regularisationCost += self.regW * np.sum(self.W * self.W) / 2.0
-                regularisationCost += self.regV * np.sum(self.V * self.V) / 2.0
-                regularisationCost += self.regL * np.sum(self.L * self.L) / 2.0
+                regularisationCost = self.regWs * norm(self.Ws, bias=True) / 2.0
+                regularisationCost += self.regW * norm(self.W, bias=True) / 2.0
+                regularisationCost += self.regV * norm(self.V, bias=0) / 2.0
+                regularisationCost += self.regL * norm(self.L, bias=0) / 2.0
 
                 errVal.append(currentError)
                 print('Error+regularisation cost, on validation set at epoch {0} : '
@@ -532,7 +531,6 @@ def aggregate(scTotal, sc):
 
 def init_matrix(nRows, nCols, bias=True, r=None, method="Bengio"):
     mat = np.zeros((nRows, nCols + bias))
-    print mat.shape
     if r is None:
         if method == "Bengio":
             r = sqrt(6) / sqrt(nRows + nCols)
@@ -552,3 +550,10 @@ def init_tensor(nRows, nCols, nLayers, r=0.0001):
     V = np.random.uniform(-r, r, size=(nRows, nCols, nLayers))
     V = (V + np.transpose(V, axes=[0, 2, 1])) / 2
     return V
+
+
+def norm(W, bias=True):
+    if bias:
+        return np.sum(W[::, :-1] * W[::, :-1])
+    else:
+        return np.sum(W * W)
